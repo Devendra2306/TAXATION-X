@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "fail",
+  "type": "sequence",
+  "quality": "showcase",
+  "specification": {
+    "path": "C:\\jeee main\\OFS TAXATION\\.archify\\sequence-web-request-cache-20260930-213327\\candidate.json",
+    "sha256": "10930688b047f11684a079247a6c1ddb16a2fd9fe3985e443ede25c8a343be26",
+    "bytes": 2407
+  },
+  "artifact": {
+    "path": "C:\\jeee main\\OFS TAXATION\\.archify\\sequence-web-request-cache-20260930-213327\\web-request-cache-2.html",
+    "sha256": "79bb5df5698e41516d3389d81c830359c869478c43b5d6f169145a237956f126",
+    "bytes": 752688
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "fail"
+  },
+  "failedStage": "browser-check",
+  "diagnostics": [
+    {
+      "code": "viewer/evidence-path-conflict",
+      "severity": "error",
+      "message": "browser-check will not replace the existing unowned evidence path \"C:\\jeee main\\OFS TAXATION\\.archify\\sequence-web-request-cache-20260930-213327\\web-request-cache-2.browser-check.json\".",
+      "subject": {
+        "artifact": "C:\\jeee main\\OFS TAXATION\\.archify\\sequence-web-request-cache-20260930-213327\\web-request-cache-2.html",
+        "evidencePath": "C:\\jeee main\\OFS TAXATION\\.archify\\sequence-web-request-cache-20260930-213327\\web-request-cache-2.browser-check.json"
+      },
+      "evidence": {
+        "reason": {
+          "code": "ownership-artifact-mismatch"
+        }
+      },
+      "supportedFixes": [
+        "move the conflicting file aside, or choose a separate --out-dir, then rerun browser-check"
+      ]
+    }
+  ],
+  "diagnosticSummary": {
+    "total": 1,
+    "shown": 1,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "C:\\jeee main\\OFS TAXATION\\.archify\\sequence-web-request-cache-20260930-213327\\web-request-cache-2.finalize.json",
+    "summaryReceipt": "C:\\jeee main\\OFS TAXATION\\.archify\\sequence-web-request-cache-20260930-213327\\web-request-cache-2.finalize-summary.json",
+    "browserCheckReceipt": "C:\\jeee main\\OFS TAXATION\\.archify\\sequence-web-request-cache-20260930-213327\\web-request-cache-2.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.0.1",
+    "availableVersion": "3.0.1",
+    "releaseNotes": null,
+    "checkedAt": "2026-09-30T16:06:33.053Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 1508
+}

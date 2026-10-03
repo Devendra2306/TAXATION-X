@@ -11,11 +11,11 @@
 | Layer | Choice | Why |
 |---|---|---|
 | Backend framework | **FastAPI** (Python) | Async-native, fast to build, strong typing via Pydantic — good fit for a solo/small team shipping quickly, and Python has the best ecosystem for PDF parsing/OCR |
-| Database | **PostgreSQL** (managed, e.g. RDS) | ACID guarantees matter for financial data; JSONB columns let you store flexible tax-computation results without a rigid schema |
-| Async job queue | **Redis + Celery** | Form 16 parsing shouldn't block the request-response cycle; queue it, process in background workers, notify user on completion |
-| Object storage | **S3 (or S3-compatible)**, server-side encryption enabled | Documents at rest must be encrypted; S3 versioning also gives you accidental-deletion protection for free |
-| Frontend | **React (Next.js)** | SSR for the marketing/landing pages, client-rendered app for the authenticated dashboard |
-| Containerization | **Docker**, deployed on **ECS Fargate** (or equivalent managed container service) | No server management overhead; scales horizontally by adding tasks under load, scales to zero-ish cost when idle |
+| Database | **PostgreSQL** (Managed via Render) | ACID guarantees matter for financial data. Render offers an excellent free/cheap tier for managed Postgres. |
+| Async job queue | **Redis + Celery** (Managed via Render/Upstash) | Form 16 parsing shouldn't block the request-response cycle; queue it, process in background workers, notify user on completion. |
+| Object storage | **AWS S3**, server-side encryption enabled | Documents at rest must be encrypted; S3 versioning also gives you accidental-deletion protection for free. Extremely cheap for MVP volumes. |
+| Frontend | **React (Next.js)** on **Vercel** | Vercel provides zero-config deployments for Next.js, an edge CDN, and generous free tiers for MVPs. |
+| Hosting | **Render (PaaS)** | The FastAPI backend, Celery workers, and databases are hosted on Render. This avoids the devops overhead of managing EC2 instances while remaining container-native. |
 | Parsing | Rule-based/regex extraction for standard Form 16 formats, falling back to an OCR/AI-based extraction step (e.g. Textract or an LLM API) for non-standard layouts | Keeps cost low for the common case, only pays the more expensive per-document AI cost when needed |
 
 This matches and refines the direction already scoped: modular monolith first, split into auth / parsing / tax_engine modules internally, moving to actual separate microservices only if real load numbers justify the added operational complexity.

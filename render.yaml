@@ -1,0 +1,66 @@
+services:
+  # The FastAPI Backend Web Service
+  - type: web
+    name: ofs-tax-backend
+    env: docker
+    region: singapore
+    plan: free
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ofs-tax-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: ofs-tax-redis
+          property: connectionString
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_BUCKET_NAME
+        sync: false
+      - key: AWS_REGION
+        sync: false
+
+  # Celery Worker Service
+  - type: worker
+    name: ofs-tax-celery
+    env: docker
+    region: singapore
+    plan: free
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    dockerCommand: "celery -A app.celery_app worker --loglevel=info"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ofs-tax-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: ofs-tax-redis
+          property: connectionString
+
+databases:
+  # Managed PostgreSQL
+  - name: ofs-tax-postgres
+    region: singapore
+    plan: free
+    databaseName: ofs_tax
+    user: postgres
+
+  # Managed Redis (Note: Render Redis free tier is no longer available in all regions)
+  - type: redis
+    name: ofs-tax-redis
+    region: singapore
+    plan: free
+    maxmemoryPolicy: noeviction

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "0a51d01e-aa05-4be2-b275-9359bd69b48a",
+  "status": "current",
+  "command": "deliver",
+  "type": "sequence",
+  "input": "C:\\jeee main\\OFS TAXATION\\.archify\\sequence-web-request-cache-20260930-213327\\candidate.json",
+  "output": "C:\\jeee main\\OFS TAXATION\\.archify\\sequence-web-request-cache-20260930-213327\\web-request-cache-3.html",
+  "specification": {
+    "sha256": "44759b7841d3947bbda1b65adc4c70d4f7130d0cbbe09b604d78f65355dbee7c",
+    "bytes": 2407
+  },
+  "artifact": {
+    "sha256": "79bb5df5698e41516d3389d81c830359c869478c43b5d6f169145a237956f126",
+    "bytes": 752688
+  }
+}

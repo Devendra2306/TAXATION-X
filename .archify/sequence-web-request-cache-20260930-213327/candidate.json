@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Web Request: Cache Miss Fallback",
+    "output": ".archify/sequence-web-request-cache-20260930-213327/web-request-cache-3.html",
+    "quality_profile": "showcase",
+    "column_fit": "spread"
+  },
+  "participants": [
+    { "id": "browser", "type": "external", "label": "Browser", "sublabel": "client" },
+    { "id": "api", "type": "backend", "label": "API", "sublabel": "web service" },
+    { "id": "redis", "type": "database", "label": "Redis", "sublabel": "cache" },
+    { "id": "pg", "type": "database", "label": "PostgreSQL", "sublabel": "database" }
+  ],
+  "segments": [
+    { "from": 120, "to": 235, "label": "Cache Lookup" },
+    { "from": 245, "to": 315, "label": "Database Fallback" },
+    { "from": 320, "to": 410, "label": "Cache Fill & Respond" }
+  ],
+  "messages": [
+    { "id": "req", "from": "browser", "to": "api", "y": 160, "label": "GET /data", "variant": "default" },
+    { "id": "check-cache", "from": "api", "to": "redis", "y": 190, "label": "read cache", "variant": "default" },
+    { "id": "miss", "from": "redis", "to": "api", "y": 220, "label": "cache miss", "variant": "return" },
+    { "id": "query", "from": "api", "to": "pg", "y": 260, "label": "SELECT data", "variant": "emphasis" },
+    { "id": "rows", "from": "pg", "to": "api", "y": 290, "label": "rows", "variant": "return" },
+    { "id": "set-cache", "from": "api", "to": "redis", "y": 330, "label": "set cache (w/ TTL)", "variant": "dashed" },
+    { "id": "res", "from": "api", "to": "browser", "y": 370, "label": "200 OK", "variant": "return" }
+  ],
+  "activations": [
+    { "participant": "api", "from": 160, "to": 375, "type": "backend" },
+    { "participant": "redis", "from": 185, "to": 225, "type": "database" },
+    { "participant": "pg", "from": 255, "to": 295, "type": "database" },
+    { "participant": "redis", "from": 325, "to": 335, "type": "database" }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "Cache Miss",
+      "items": [
+        "API attempts to read from Redis first.",
+        "On miss, falls back to PostgreSQL."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Cache Fill & TTL",
+      "items": [
+        "Data is saved to Redis asynchronously with a TTL.",
+        "If setting cache fails, request still succeeds.",
+        "Subsequent requests will hit the cache."
+      ]
+    }
+  ]
+}

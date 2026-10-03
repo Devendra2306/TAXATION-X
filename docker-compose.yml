@@ -1,23 +1,41 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: ofs_tax
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
     ports:
       - "8000:8000"
-    volumes:
-      # Mount the local backend dir so sqlite database persists, but don't overwrite container code in prod
-      - ./backend/ofs_tax.db:/app/ofs_tax.db
     env_file:
       - .env.production
+    depends_on:
+      - postgres
+      - redis
     restart: always
 
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
     ports:
       - "3000:3000"
     environment:
@@ -25,3 +43,7 @@ services:
     depends_on:
       - backend
     restart: always
+
+volumes:
+  postgres_data:
+  redis_data:
