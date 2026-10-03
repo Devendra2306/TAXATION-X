@@ -6,7 +6,18 @@ import { Check, X, Shield, Clock, Zap, Star } from 'lucide-react';
 import Link from 'next/link';
 import { Logo } from '@/components/Logo';
 
-const plans = [
+interface Plan {
+  name: string;
+  target: string;
+  price: string;
+  tagline: string;
+  badge: string | null;
+  popular?: boolean;
+  covers: { text: string; included: boolean }[];
+  benefits: { text: string; highlight?: boolean }[];
+}
+
+const plans: Plan[] = [
   {
     name: "Basic",
     target: "Salaried Professionals",
