@@ -1,66 +1,46 @@
+# render.yaml - Render Infrastructure-as-Code Blueprint
+# This tells Render how to build and deploy both services automatically
+
 services:
-  # The FastAPI Backend Web Service
+  # === BACKEND (FastAPI) ===
   - type: web
-    name: ofs-tax-backend
-    env: docker
-    region: singapore
-    plan: free
-    dockerContext: ./backend
+    name: taxation-api
+    runtime: docker
     dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
     envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: ofs-tax-postgres
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: ofs-tax-redis
-          property: connectionString
       - key: GEMINI_API_KEY
-        sync: false
-      - key: SECRET_KEY
-        generateValue: true
-      - key: AWS_ACCESS_KEY_ID
-        sync: false
-      - key: AWS_SECRET_ACCESS_KEY
-        sync: false
-      - key: AWS_BUCKET_NAME
-        sync: false
-      - key: AWS_REGION
-        sync: false
-
-  # Celery Worker Service
-  - type: worker
-    name: ofs-tax-celery
-    env: docker
-    region: singapore
-    plan: free
-    dockerContext: ./backend
-    dockerfilePath: ./backend/Dockerfile
-    dockerCommand: "celery -A app.celery_app worker --loglevel=info"
-    envVars:
+        sync: false  # You'll set this manually in Render dashboard
+      - key: JWT_SECRET_KEY
+        generateValue: true  # Render auto-generates a random secret
       - key: DATABASE_URL
-        fromDatabase:
-          name: ofs-tax-postgres
-          property: connectionString
-      - key: REDIS_URL
+        value: sqlite:///./ofs_tax.db
+
+  # === FRONTEND (Next.js) ===
+  - type: web
+    name: taxation-app
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    plan: free
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
         fromService:
-          type: redis
-          name: ofs-tax-redis
-          property: connectionString
-
-databases:
-  # Managed PostgreSQL
-  - name: ofs-tax-postgres
-    region: singapore
-    plan: free
-    databaseName: ofs_tax
-    user: postgres
-
-  # Managed Redis (Note: Render Redis free tier is no longer available in all regions)
-  - type: redis
-    name: ofs-tax-redis
-    region: singapore
-    plan: free
-    maxmemoryPolicy: noeviction
+          name: taxation-api
+          type: web
+          property: hostport
+      - key: NEXT_PUBLIC_FIREBASE_API_KEY
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_APP_ID
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+        sync: false
