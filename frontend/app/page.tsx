@@ -3,11 +3,22 @@
 import { motion } from 'framer-motion';
 import { Search, Bot, PhoneCall, ChevronRight, FileText, Landmark, Building2, Briefcase, Calculator, Users, SearchCheck, MessageSquare, ShieldCheck, Award, Clock, DollarSign, UploadCloud, CheckCircle2, BotMessageSquare } from 'lucide-react';
 import Link from 'next/link';
-import { Logo } from '@/components/Logo';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function LandingPage() {
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const router = useRouter();
+
+  const handleChatSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (chatInput.trim()) {
+      router.push('/chat');
+    } else {
+      router.push('/chat');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#f8f9fc] font-sans text-slate-800 selection:bg-amber-200">
@@ -15,21 +26,21 @@ export default function LandingPage() {
       {/* HEADER */}
       <header className="fixed top-0 w-full z-50 bg-white border-b border-slate-100 shadow-sm">
         <div className="max-w-[1400px] mx-auto px-4 xl:px-8 h-[72px] flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2">
              <div className="font-serif text-2xl font-bold flex items-center text-[#0b1b3d]">
                <div className="flex flex-col leading-none">
                  <span className="text-[#0b1b3d]">Nex<span className="text-amber-500">Tax</span></span>
                  <span className="text-[9px] font-sans font-normal text-slate-500 mt-0.5 tracking-wide">AI Powered Tax Filing</span>
                </div>
              </div>
-          </div>
+          </Link>
           
           <nav className="hidden lg:flex items-center gap-8 text-[13px] font-semibold text-slate-700">
             <Link href="/" className="text-[#0b1b3d] border-b-2 border-amber-500 pb-1">Home</Link>
-            <Link href="/services" className="hover:text-amber-500 transition-colors">Services</Link>
-            <Link href="/updates" className="hover:text-amber-500 transition-colors">Tax Updates</Link>
-            <Link href="/resources" className="hover:text-amber-500 transition-colors">Resources</Link>
-            <Link href="/ai-assistant" className="hover:text-amber-500 transition-colors">AI Assistant</Link>
+            <Link href="/upload" className="hover:text-amber-500 transition-colors">Services</Link>
+            <Link href="/tax-calculator" className="hover:text-amber-500 transition-colors">Tax Updates</Link>
+            <Link href="/tax-calculator" className="hover:text-amber-500 transition-colors">Resources</Link>
+            <Link href="/chat" className="hover:text-amber-500 transition-colors">AI Assistant</Link>
             <Link href="/about" className="hover:text-amber-500 transition-colors">About Us</Link>
             <Link href="/contact" className="hover:text-amber-500 transition-colors">Contact Us</Link>
           </nav>
@@ -133,13 +144,13 @@ export default function LandingPage() {
                 </div>
                 
                 <div className="space-y-4">
-                  <button 
-                    onClick={() => setChatOpen(true)}
+                  <Link 
+                    href="/chat"
                     className="w-full flex items-center justify-center gap-3 bg-[#dca850] text-[#0b1b3d] font-bold py-3.5 rounded-full hover:bg-[#c9953d] transition-all shadow-[0_0_15px_rgba(220,168,80,0.3)]"
                   >
                     Chat with AI Assistant
                     <MessageSquare size={18} />
-                  </button>
+                  </Link>
                   
                   <div className="flex items-center gap-3 py-2">
                     <div className="flex-1 h-px bg-slate-700"></div>
@@ -147,7 +158,7 @@ export default function LandingPage() {
                     <div className="flex-1 h-px bg-slate-700"></div>
                   </div>
                   
-                  <Link href="/login" className="w-full flex items-center justify-center gap-3 bg-transparent border border-slate-600 text-white font-semibold py-3.5 rounded-full hover:bg-slate-800 transition-colors">
+                  <Link href="/contact" className="w-full flex items-center justify-center gap-3 bg-transparent border border-slate-600 text-white font-semibold py-3.5 rounded-full hover:bg-slate-800 transition-colors">
                     <PhoneCall size={18} className="text-[#dca850]" />
                     Talk to Real CA
                     <span className="block text-[10px] font-normal text-slate-400 absolute mt-9">Connect with our expert now</span>
@@ -166,7 +177,7 @@ export default function LandingPage() {
             <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6 xl:w-[350px] shrink-0 flex flex-col h-[520px]">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="font-bold text-[#0b1b3d] text-lg">Latest Tax Updates</h3>
-                <Link href="#" className="text-xs font-semibold text-slate-500 hover:text-[#0b1b3d]">View All</Link>
+                <Link href="/tax-calculator" className="text-xs font-semibold text-slate-500 hover:text-[#0b1b3d]">View All</Link>
               </div>
               
               <div className="flex-1 overflow-y-auto pr-2 space-y-5 custom-scrollbar">
@@ -176,7 +187,7 @@ export default function LandingPage() {
                   { tag: 'FINANCE', title: 'TDS on Rent: New Rule Clarification by CBDT', date: '20 May 2024', color: 'text-blue-600 bg-blue-50 border-blue-200' },
                   { tag: 'INCOME TAX', title: 'New ITR Forms Notified for FY 2024-25', date: '18 May 2024', color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
                 ].map((update, i) => (
-                  <div key={i} className="flex gap-4 group cursor-pointer border-b border-slate-50 pb-5 last:border-0">
+                  <Link href="/tax-calculator" key={i} className="flex gap-4 group cursor-pointer border-b border-slate-50 pb-5 last:border-0">
                     <div className="w-14 h-14 rounded-lg bg-slate-100 flex-shrink-0 flex items-center justify-center border border-slate-200 group-hover:border-[#0b1b3d] transition-colors overflow-hidden">
                        <FileText className="text-slate-400 w-6 h-6" />
                     </div>
@@ -185,11 +196,11 @@ export default function LandingPage() {
                       <h4 className="text-sm font-semibold text-slate-800 mt-2 mb-1 group-hover:text-[#0b1b3d] leading-snug">{update.title}</h4>
                       <div className="text-[11px] text-slate-400">{update.date}</div>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
               
-              <Link href="#" className="flex items-center gap-2 text-sm font-semibold text-[#0b1b3d] mt-4 pt-4 border-t border-slate-100">
+              <Link href="/tax-calculator" className="flex items-center gap-2 text-sm font-semibold text-[#0b1b3d] mt-4 pt-4 border-t border-slate-100">
                 More Updates <ChevronRight size={16} />
               </Link>
             </div>
@@ -198,21 +209,21 @@ export default function LandingPage() {
             <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6 flex-1 h-auto xl:h-[520px] flex flex-col">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="font-bold text-[#0b1b3d] text-lg">Explore Our Services</h3>
-                <Link href="#" className="text-xs font-semibold text-slate-500 hover:text-[#0b1b3d]">View All Services</Link>
+                <Link href="/upload" className="text-xs font-semibold text-slate-500 hover:text-[#0b1b3d]">View All Services</Link>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 flex-1">
                 {[
-                  { icon: <FileText size={24}/>, title: 'Income Tax', desc: 'ITR Filing, Planning & Compliance' },
-                  { icon: <Landmark size={24}/>, title: 'GST Services', desc: 'Registration, Returns & Advisory' },
-                  { icon: <Calculator size={24}/>, title: 'TDS Services', desc: 'TDS Return, Filing & Compliance' },
-                  { icon: <Building2 size={24}/>, title: 'Company Registration', desc: 'Private, LLP, OPC Registration' },
-                  { icon: <Briefcase size={24}/>, title: 'Accounting & Bookkeeping', desc: 'Monthly/Yearly Accounting' },
-                  { icon: <SearchCheck size={24}/>, title: 'Audit & Assurance', desc: 'Statutory Audit, Tax Audit & More' },
-                  { icon: <ShieldCheck size={24}/>, title: 'Tax Notice Handling', desc: 'Assessment, Scrutiny & Appeals' },
-                  { icon: <Users size={24}/>, title: 'Business Consultation', desc: 'Startups, MSME & Advisory' },
+                  { icon: <FileText size={24}/>, title: 'Income Tax', desc: 'ITR Filing, Planning & Compliance', href: '/upload' },
+                  { icon: <Landmark size={24}/>, title: 'GST Services', desc: 'Registration, Returns & Advisory', href: '/contact' },
+                  { icon: <Calculator size={24}/>, title: 'TDS Services', desc: 'TDS Return, Filing & Compliance', href: '/contact' },
+                  { icon: <Building2 size={24}/>, title: 'Company Registration', desc: 'Private, LLP, OPC Registration', href: '/contact' },
+                  { icon: <Briefcase size={24}/>, title: 'Accounting & Bookkeeping', desc: 'Monthly/Yearly Accounting', href: '/contact' },
+                  { icon: <SearchCheck size={24}/>, title: 'Audit & Assurance', desc: 'Statutory Audit, Tax Audit & More', href: '/contact' },
+                  { icon: <ShieldCheck size={24}/>, title: 'Tax Notice Handling', desc: 'Assessment, Scrutiny & Appeals', href: '/contact' },
+                  { icon: <Users size={24}/>, title: 'Business Consultation', desc: 'Startups, MSME & Advisory', href: '/contact' },
                 ].map((service, i) => (
-                  <Link href="/login" key={i} className="group p-5 rounded-xl border border-slate-100 hover:border-[#0b1b3d] hover:shadow-md transition-all flex flex-col">
+                  <Link href={service.href} key={i} className="group p-5 rounded-xl border border-slate-100 hover:border-[#0b1b3d] hover:shadow-md transition-all flex flex-col">
                     <div className="w-10 h-10 rounded-lg bg-[#0b1b3d] text-white flex items-center justify-center mb-4 group-hover:bg-[#dca850] transition-colors">
                       {service.icon}
                     </div>
@@ -324,7 +335,11 @@ export default function LandingPage() {
             
             <div className="space-y-2 mt-auto">
               {['I want to file my ITR', 'I need GST Registration', 'TDS on Rent Query', 'Notice Received from IT Dept', 'Other Query'].map((q, i) => (
-                <button key={i} className="w-full flex items-center justify-between bg-white border border-slate-200 p-3 rounded-xl hover:border-[#0b1b3d] hover:shadow-sm transition-all text-left group">
+                <button 
+                  key={i} 
+                  onClick={() => router.push('/chat')}
+                  className="w-full flex items-center justify-between bg-white border border-slate-200 p-3 rounded-xl hover:border-[#0b1b3d] hover:shadow-sm transition-all text-left group"
+                >
                   <span className="text-sm text-slate-700 font-medium group-hover:text-[#0b1b3d]">{q}</span>
                   <ChevronRight size={16} className="text-slate-400 group-hover:text-[#0b1b3d]" />
                 </button>
@@ -333,38 +348,44 @@ export default function LandingPage() {
          </div>
          
          {/* Chat Input */}
-         <div className="p-4 bg-white border-t border-slate-100">
+         <form onSubmit={handleChatSubmit} className="p-4 bg-white border-t border-slate-100">
            <div className="flex items-center gap-2 bg-[#f8f9fc] border border-slate-200 rounded-full px-4 py-2">
-             <input type="text" placeholder="Type your message..." className="flex-1 bg-transparent border-none outline-none text-sm text-slate-700 placeholder:text-slate-400" />
-             <BotMessageSquare className="text-slate-400 w-5 h-5 cursor-pointer hover:text-[#0b1b3d]" />
-             <div className="w-8 h-8 bg-[#0b1b3d] rounded-full flex items-center justify-center cursor-pointer hover:bg-opacity-90">
+             <input 
+               type="text" 
+               value={chatInput}
+               onChange={(e) => setChatInput(e.target.value)}
+               placeholder="Type your message..." 
+               className="flex-1 bg-transparent border-none outline-none text-sm text-slate-700 placeholder:text-slate-400" 
+             />
+             <BotMessageSquare className="text-slate-400 w-5 h-5 cursor-pointer hover:text-[#0b1b3d]" onClick={handleChatSubmit} />
+             <button type="submit" className="w-8 h-8 bg-[#0b1b3d] rounded-full flex items-center justify-center cursor-pointer hover:bg-opacity-90 border-none outline-none">
                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-             </div>
+             </button>
            </div>
-         </div>
+         </form>
          
          {/* Bottom Nav */}
          <div className="flex items-center justify-between px-6 py-3 bg-white border-t border-slate-100 text-[#0b1b3d]">
-           <div className="flex flex-col items-center gap-1 cursor-pointer">
+           <Link href="/" className="flex flex-col items-center gap-1 cursor-pointer">
              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
              <span className="text-[10px] font-bold">Home</span>
-           </div>
-           <div className="flex flex-col items-center gap-1 cursor-pointer text-slate-400 hover:text-[#0b1b3d]">
+           </Link>
+           <Link href="/upload" className="flex flex-col items-center gap-1 cursor-pointer text-slate-400 hover:text-[#0b1b3d]">
              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>
              <span className="text-[10px] font-medium">Services</span>
-           </div>
-           <div className="flex flex-col items-center gap-1 cursor-pointer text-slate-400 hover:text-[#0b1b3d]">
+           </Link>
+           <Link href="/tax-calculator" className="flex flex-col items-center gap-1 cursor-pointer text-slate-400 hover:text-[#0b1b3d]">
              <Calculator size={20} />
              <span className="text-[10px] font-medium">Calculator</span>
-           </div>
-           <div className="flex flex-col items-center gap-1 cursor-pointer text-slate-400 hover:text-[#0b1b3d]">
+           </Link>
+           <Link href="/contact" className="flex flex-col items-center gap-1 cursor-pointer text-slate-400 hover:text-[#0b1b3d]">
              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
              <span className="text-[10px] font-medium">Support</span>
-           </div>
-           <div className="flex flex-col items-center gap-1 cursor-pointer text-slate-400 hover:text-[#0b1b3d]">
+           </Link>
+           <Link href="/dashboard" className="flex flex-col items-center gap-1 cursor-pointer text-slate-400 hover:text-[#0b1b3d]">
              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
              <span className="text-[10px] font-medium">Profile</span>
-           </div>
+           </Link>
          </div>
       </div>
       
