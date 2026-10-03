@@ -17,10 +17,9 @@ export default function LandingPage() {
         <div className="max-w-[1400px] mx-auto px-4 xl:px-8 h-[72px] flex items-center justify-between">
           <div className="flex items-center gap-2">
              <div className="font-serif text-2xl font-bold flex items-center text-[#0b1b3d]">
-               <span className="text-3xl mr-1 font-serif text-[#0b1b3d]">7</span> 
                <div className="flex flex-col leading-none">
-                 <span className="text-[#0b1b3d]">TaxAssist <span className="text-amber-500">CA</span></span>
-                 <span className="text-[9px] font-sans font-normal text-slate-500 mt-0.5 tracking-wide">Your Growth, Our Expertise</span>
+                 <span className="text-[#0b1b3d]">Nex<span className="text-amber-500">Tax</span></span>
+                 <span className="text-[9px] font-sans font-normal text-slate-500 mt-0.5 tracking-wide">AI Powered Tax Filing</span>
                </div>
              </div>
           </div>
