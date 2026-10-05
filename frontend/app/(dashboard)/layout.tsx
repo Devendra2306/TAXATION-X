@@ -64,8 +64,7 @@ export default function DashboardLayout({
     const fetchProfile = async () => {
       const token = localStorage.getItem('access_token');
       if (!token) {
-        setUserName('Guest User');
-        setUserInitials('GU');
+        router.push('/login');
         return;
       }
 
@@ -82,12 +81,13 @@ export default function DashboardLayout({
           setUserName(name);
           setUserInitials(name.substring(0, 2).toUpperCase());
         } else {
-          setUserName('Guest User');
-          setUserInitials('GU');
+          // Token invalid or expired
+          localStorage.removeItem('access_token');
+          router.push('/login');
         }
       } catch (err) {
-        setUserName('Guest User');
-        setUserInitials('GU');
+        localStorage.removeItem('access_token');
+        router.push('/login');
       }
     };
     fetchProfile();
