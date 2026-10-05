@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const plans = [
-  { id: 'itr1', title: 'Salaried (ITR-1)', price: '₹499', forms: 'Form 16, Salary, 1 House', popular: true },
+  { id: 'itr1', title: 'Salaried (ITR-1)', price: 'FREE', forms: 'Form 16, Salary, 1 House', popular: true },
   { id: 'itr2', title: 'Capital Gains (ITR-2)', price: '₹999', forms: 'Stocks, MF, Crypto, Salary', popular: false },
   { id: 'itr4', title: 'Business/Pro (ITR-4)', price: '₹1,499', forms: 'Freelance, Business, Presumptive', popular: false },
 ];
