@@ -98,18 +98,18 @@ export default function LandingPage() {
                 transition={{ delay: 0.3 }}
               >
                 <div>
-                  <div className="text-white font-bold text-2xl tracking-tight">5,000+</div>
-                  <div className="text-slate-400 text-sm font-medium mt-0.5">Happy Clients</div>
+                  <div className="text-white font-bold text-2xl tracking-tight">AI-Powered</div>
+                  <div className="text-slate-400 text-sm font-medium mt-0.5">Tax Engine</div>
                 </div>
                 <div className="w-px h-10 bg-white/10"></div>
                 <div>
-                  <div className="text-white font-bold text-2xl tracking-tight">50+</div>
+                  <div className="text-white font-bold text-2xl tracking-tight">100%</div>
                   <div className="text-slate-400 text-sm font-medium mt-0.5">CA Experts</div>
                 </div>
                 <div className="w-px h-10 bg-white/10"></div>
                 <div>
-                  <div className="text-white font-bold text-2xl tracking-tight">10+</div>
-                  <div className="text-slate-400 text-sm font-medium mt-0.5">Years Experience</div>
+                  <div className="text-white font-bold text-2xl tracking-tight">Minutes</div>
+                  <div className="text-slate-400 text-sm font-medium mt-0.5">To File Returnsrience</div>
                 </div>
               </motion.div>
             </div>

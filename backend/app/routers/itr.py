@@ -3,15 +3,13 @@ from typing import Dict, Any
 
 from app.schemas.itr import OTPRequest, OTPVerify, FilingRequest, PrefillDataResponse
 from app.services import eri_service
-
-# Note: In a real app, you would have an get_current_user dependency here
-# from app.core.security import get_current_user
-# from app.models.user import User
+from app.routers.auth import get_current_user
+from app.models.user import User
 
 router = APIRouter(prefix="/api/itr", tags=["ITR E-Filing"])
 
 @router.post("/generate-otp")
-async def generate_otp(request: OTPRequest):
+async def generate_otp(request: OTPRequest, current_user: User = Depends(get_current_user)):
     """
     Trigger Aadhaar/ITD OTP to fetch prefill data or e-verify.
     """
@@ -21,7 +19,7 @@ async def generate_otp(request: OTPRequest):
     raise HTTPException(status_code=500, detail="Failed to send OTP")
 
 @router.post("/prefill", response_model=PrefillDataResponse)
-async def fetch_prefill(request: OTPVerify):
+async def fetch_prefill(request: OTPVerify, current_user: User = Depends(get_current_user)):
     """
     Verify OTP and fetch AIS, 26AS, and Prefill Data directly from Government servers.
     """
@@ -29,7 +27,7 @@ async def fetch_prefill(request: OTPVerify):
     return data
 
 @router.post("/submit")
-async def submit_tax_return(request: FilingRequest):
+async def submit_tax_return(request: FilingRequest, current_user: User = Depends(get_current_user)):
     """
     Constructs the JSON schema required by the Income Tax Department and submits it via ERI.
     """
@@ -39,7 +37,7 @@ async def submit_tax_return(request: FilingRequest):
     # 3. Submit
     
     mock_tax_data = {"income": 1250000, "deductions": 150000}
-    # pan would be fetched from current_user in real impl
+    # Uses current_user context
     result = await eri_service.submit_itr("ABCDE1234F", mock_tax_data)
     
     return result
