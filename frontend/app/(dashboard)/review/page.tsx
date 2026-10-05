@@ -1,11 +1,16 @@
-"use client";
+'use client';
 
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, Edit2, AlertTriangle, ArrowRight, Save, Home, Briefcase, Plus } from 'lucide-react';
+import { 
+  CheckCircle2, Edit2, AlertTriangle, ArrowRight, Save, 
+  User, Briefcase, Calculator, Building, Receipt, FileText, Download, ChevronRight 
+} from 'lucide-react';
 import Link from 'next/link';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function ReviewPage() {
+  const [activeTab, setActiveTab] = useState('personal');
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [parsedData, setParsedData] = useState<any>({
@@ -20,187 +25,239 @@ export default function ReviewPage() {
   });
 
   useEffect(() => {
-    // 1. Try to load from localStorage first for immediate display
     const dataStr = localStorage.getItem('parsedTaxData');
     if (dataStr) {
       try {
         setParsedData(JSON.parse(dataStr));
       } catch (e) {}
     }
-    
-    // 2. Fetch from backend to ensure we have the latest
-    fetchProfile();
   }, []);
-  
-  const fetchProfile = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-      
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const res = await fetch(`${API_URL}/api/profile`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (Object.keys(data).length > 0) {
-          setParsedData(data);
-          localStorage.setItem('parsedTaxData', JSON.stringify(data));
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    }
+
+  const handleChange = (field: string, value: string) => {
+    setParsedData({ ...parsedData, [field]: value });
   };
 
-  const saveProfile = async () => {
+  const handleSave = async () => {
     setIsLoading(true);
-    try {
-      const token = localStorage.getItem('token');
+    // Simulate save
+    setTimeout(() => {
       localStorage.setItem('parsedTaxData', JSON.stringify(parsedData));
-      
-      if (token) {
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-        await fetch(`${API_URL}/api/profile`, {
-          method: 'POST',
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json' 
-          },
-          body: JSON.stringify(parsedData)
-        });
-      }
       setIsEditing(false);
-    } catch (e) {
-      console.error(e);
-    } finally {
       setIsLoading(false);
-    }
+    }, 800);
   };
+
+  const tabs = [
+    { id: 'personal', label: 'Personal Info', icon: User },
+    { id: 'income', label: 'Income Sources', icon: Briefcase },
+    { id: 'deductions', label: 'Deductions', icon: Receipt },
+    { id: 'taxes', label: 'Taxes Paid', icon: FileText },
+  ];
+
+  const fmt = (val: number) => `₹${Number(val || 0).toLocaleString('en-IN')}`;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 pb-16">
-      <PageHeader
-        title="Review Tax Profile"
-        subtitle="Verify extracted data and add any other sources of income."
-        actions={
-          <>
-            {isEditing ? (
-              <button onClick={saveProfile} disabled={isLoading} className="btn-secondary flex items-center gap-2">
-                <Save size={16}/> {isLoading ? 'Saving...' : 'Save Changes'}
-              </button>
-            ) : (
-              <button onClick={() => setIsEditing(true)} className="btn-secondary flex items-center gap-2">
-                <Edit2 size={16}/> Edit Data
-              </button>
-            )}
-            <Link href="/compare" className="btn-primary flex items-center gap-2">
-              Continue to Comparison <ArrowRight size={16} />
-            </Link>
-          </>
-        }
-      />
+    <div className="max-w-6xl mx-auto space-y-6 pb-20">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <PageHeader
+          title="Review Tax Data"
+          subtitle="Verify the data extracted by our AI before computing your final taxes."
+        />
+        <div className="flex items-center gap-3">
+          {isEditing ? (
+            <button onClick={handleSave} className="btn-primary flex items-center gap-2">
+              {isLoading ? 'Saving...' : <><Save size={16} /> Save Changes</>}
+            </button>
+          ) : (
+            <button onClick={() => setIsEditing(true)} className="px-5 py-2.5 rounded-xl border-2 border-indigo-100 text-indigo-700 font-semibold hover:bg-indigo-50 flex items-center gap-2 transition-colors">
+              <Edit2 size={16} /> Edit Data
+            </button>
+          )}
+          <Link href="/compare" className="btn-primary flex items-center gap-2">
+            Compute Tax <ArrowRight size={16} />
+          </Link>
+        </div>
+      </div>
 
-      <div className="grid md:grid-cols-2 gap-8">
+      <div className="flex flex-col lg:flex-row gap-8">
         
-        {/* Salary Information */}
-        <div className="space-y-6">
-          <div className="card-elevated overflow-hidden">
-            <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="font-semibold text-slate-800 flex items-center gap-2">
-                <Briefcase size={18} className="text-blue-500" /> Income from Salary
-              </h2>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Gross Salary</label>
-                {isEditing ? (
-                  <input type="number" className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-800" value={parsedData.gross_salary} onChange={e => setParsedData({...parsedData, gross_salary: Number(e.target.value)})} />
-                ) : (
-                  <div className="text-lg font-medium text-slate-800">₹{parsedData.gross_salary?.toLocaleString('en-IN') || 0}</div>
-                )}
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">TDS Deducted by Employer</label>
-                {isEditing ? (
-                  <input type="number" className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-800" value={parsedData.tds_deducted} onChange={e => setParsedData({...parsedData, tds_deducted: Number(e.target.value)})} />
-                ) : (
-                  <div className="text-lg font-medium text-slate-800">₹{parsedData.tds_deducted?.toLocaleString('en-IN') || 0}</div>
-                )}
-              </div>
-            </div>
-          </div>
-          
-          {/* Deductions Information */}
-          <div className="card-elevated overflow-hidden">
-            <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="font-semibold text-slate-800 flex items-center gap-2">
-                <CheckCircle2 size={18} className="text-emerald-500" /> Chapter VI-A Deductions
-              </h2>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Section 80C (LIC, PPF, ELSS)</label>
-                {isEditing ? (
-                  <input type="number" className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-800" value={parsedData.deductions_80c} onChange={e => setParsedData({...parsedData, deductions_80c: Number(e.target.value)})} />
-                ) : (
-                  <div className="text-lg font-medium text-slate-800">₹{parsedData.deductions_80c?.toLocaleString('en-IN') || 0}</div>
-                )}
-              </div>
-            </div>
-          </div>
+        {/* Left Sidebar - Tabs */}
+        <div className="lg:w-64 shrink-0 space-y-2">
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-medium transition-all ${
+                  isActive 
+                    ? 'bg-indigo-50 text-indigo-700 border-l-4 border-indigo-600 shadow-sm' 
+                    : 'text-slate-600 hover:bg-slate-50 border-l-4 border-transparent'
+                }`}
+              >
+                <tab.icon size={18} className={isActive ? 'text-indigo-600' : 'text-slate-400'} />
+                {tab.label}
+                {isActive && <ChevronRight size={16} className="ml-auto opacity-50" />}
+              </button>
+            )
+          })}
         </div>
 
-        {/* Other Income Sources */}
-        <div className="space-y-6">
-          
-          {/* House Property */}
-          <div className="card-elevated overflow-hidden">
-            <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="font-semibold text-slate-800 flex items-center gap-2">
-                <Home size={18} className="text-amber-500" /> Income from House Property
-              </h2>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Interest on Home Loan (Section 24b)</label>
-                {isEditing ? (
-                  <input type="number" className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-800" value={parsedData.home_loan_interest || 0} onChange={e => setParsedData({...parsedData, home_loan_interest: Number(e.target.value)})} />
-                ) : (
-                  <div className="text-lg font-medium text-slate-800">₹{parsedData.home_loan_interest?.toLocaleString('en-IN') || 0}</div>
-                )}
-                <p className="text-xs text-slate-400 mt-1">Maximum ₹2,00,000 for self-occupied property.</p>
-              </div>
-            </div>
-          </div>
+        {/* Right Content Area */}
+        <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[500px]">
+          <div className="p-6 md:p-8">
+            <AnimatePresence mode="wait">
+              
+              {activeTab === 'personal' && (
+                <motion.div key="personal" initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-10}}>
+                  <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+                    <User className="text-indigo-500" /> Personal & Employer Details
+                  </h2>
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-slate-700">Permanent Account Number (PAN)</label>
+                      {isEditing ? (
+                        <input type="text" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none uppercase" value={parsedData.pan} onChange={(e) => handleChange('pan', e.target.value)} />
+                      ) : (
+                        <div className="px-4 py-3 bg-slate-50 rounded-xl border border-slate-100 font-medium text-slate-800 uppercase">{parsedData.pan || 'Not Provided'}</div>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-slate-700">Employer Name</label>
+                      {isEditing ? (
+                        <input type="text" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none" value={parsedData.employer_name} onChange={(e) => handleChange('employer_name', e.target.value)} />
+                      ) : (
+                        <div className="px-4 py-3 bg-slate-50 rounded-xl border border-slate-100 font-medium text-slate-800">{parsedData.employer_name || 'Not Provided'}</div>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
 
-          {/* Capital Gains & Other Income */}
-          <div className="card-elevated overflow-hidden">
-            <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="font-semibold text-slate-800 flex items-center gap-2">
-                <Plus size={18} className="text-purple-500" /> Other Sources & Capital Gains
-              </h2>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Capital Gains (Stocks, MFs)</label>
-                {isEditing ? (
-                  <input type="number" className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-800" value={parsedData.capital_gains || 0} onChange={e => setParsedData({...parsedData, capital_gains: Number(e.target.value)})} />
-                ) : (
-                  <div className="text-lg font-medium text-slate-800">₹{parsedData.capital_gains?.toLocaleString('en-IN') || 0}</div>
-                )}
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Other Income (FD Interest, Dividends)</label>
-                {isEditing ? (
-                  <input type="number" className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-800" value={parsedData.other_income || 0} onChange={e => setParsedData({...parsedData, other_income: Number(e.target.value)})} />
-                ) : (
-                  <div className="text-lg font-medium text-slate-800">₹{parsedData.other_income?.toLocaleString('en-IN') || 0}</div>
-                )}
-              </div>
-            </div>
+              {activeTab === 'income' && (
+                <motion.div key="income" initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-10}}>
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                      <Briefcase className="text-emerald-500" /> Income Sources
+                    </h2>
+                    <span className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-sm font-bold border border-emerald-100">
+                      Total: {fmt(Number(parsedData.gross_salary) + Number(parsedData.capital_gains) + Number(parsedData.other_income))}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-6">
+                    <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/50">
+                      <h3 className="font-semibold text-slate-800 mb-4">Salary Income (Form 16)</h3>
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-semibold text-slate-700">Gross Salary</label>
+                        {isEditing ? (
+                          <div className="relative">
+                            <span className="absolute left-4 top-2.5 text-slate-400 font-medium">₹</span>
+                            <input type="number" className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none" value={parsedData.gross_salary} onChange={(e) => handleChange('gross_salary', e.target.value)} />
+                          </div>
+                        ) : (
+                          <div className="px-4 py-3 bg-white rounded-xl border border-slate-200 font-bold text-slate-800">{fmt(parsedData.gross_salary)}</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/50">
+                      <h3 className="font-semibold text-slate-800 mb-4">Other Income</h3>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-sm font-semibold text-slate-700">Capital Gains (Stocks/MF)</label>
+                          {isEditing ? (
+                            <div className="relative">
+                              <span className="absolute left-4 top-2.5 text-slate-400 font-medium">₹</span>
+                              <input type="number" className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none" value={parsedData.capital_gains} onChange={(e) => handleChange('capital_gains', e.target.value)} />
+                            </div>
+                          ) : (
+                            <div className="px-4 py-3 bg-white rounded-xl border border-slate-200 font-bold text-slate-800">{fmt(parsedData.capital_gains)}</div>
+                          )}
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-sm font-semibold text-slate-700">Interest Income</label>
+                          {isEditing ? (
+                            <div className="relative">
+                              <span className="absolute left-4 top-2.5 text-slate-400 font-medium">₹</span>
+                              <input type="number" className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none" value={parsedData.other_income} onChange={(e) => handleChange('other_income', e.target.value)} />
+                            </div>
+                          ) : (
+                            <div className="px-4 py-3 bg-white rounded-xl border border-slate-200 font-bold text-slate-800">{fmt(parsedData.other_income)}</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {activeTab === 'deductions' && (
+                <motion.div key="deductions" initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-10}}>
+                   <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                      <Receipt className="text-amber-500" /> Tax Deductions
+                    </h2>
+                  </div>
+                  
+                  <div className="grid gap-6">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-slate-700 flex justify-between">
+                        <span>Section 80C (LIC, ELSS, PPF)</span>
+                        <span className="text-indigo-600 font-medium">Max Limit: ₹1,50,000</span>
+                      </label>
+                      {isEditing ? (
+                        <div className="relative">
+                          <span className="absolute left-4 top-2.5 text-slate-400 font-medium">₹</span>
+                          <input type="number" className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none" value={parsedData.deductions_80c} onChange={(e) => handleChange('deductions_80c', e.target.value)} />
+                        </div>
+                      ) : (
+                        <div className="px-4 py-3 bg-slate-50 rounded-xl border border-slate-100 font-bold text-slate-800">{fmt(parsedData.deductions_80c)}</div>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-slate-700 flex justify-between">
+                        <span>Home Loan Interest (Section 24)</span>
+                        <span className="text-indigo-600 font-medium">Max Limit: ₹2,00,000</span>
+                      </label>
+                      {isEditing ? (
+                        <div className="relative">
+                          <span className="absolute left-4 top-2.5 text-slate-400 font-medium">₹</span>
+                          <input type="number" className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none" value={parsedData.home_loan_interest} onChange={(e) => handleChange('home_loan_interest', e.target.value)} />
+                        </div>
+                      ) : (
+                        <div className="px-4 py-3 bg-slate-50 rounded-xl border border-slate-100 font-bold text-slate-800">{fmt(parsedData.home_loan_interest)}</div>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {activeTab === 'taxes' && (
+                <motion.div key="taxes" initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-10}}>
+                   <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+                    <FileText className="text-rose-500" /> Taxes Already Paid (TDS)
+                  </h2>
+                  <div className="p-6 bg-rose-50/50 border border-rose-100 rounded-2xl">
+                    <p className="text-sm text-slate-600 mb-4">This is the total tax already deducted by your employer or banks before paying you.</p>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-slate-700">Total TDS Deducted</label>
+                      {isEditing ? (
+                        <div className="relative">
+                          <span className="absolute left-4 top-2.5 text-slate-400 font-medium">₹</span>
+                          <input type="number" className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-rose-200 focus:ring-2 focus:ring-rose-500 outline-none" value={parsedData.tds_deducted} onChange={(e) => handleChange('tds_deducted', e.target.value)} />
+                        </div>
+                      ) : (
+                        <div className="px-4 py-3 bg-white rounded-xl border border-rose-200 font-bold text-rose-700 text-lg">{fmt(parsedData.tds_deducted)}</div>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+            </AnimatePresence>
           </div>
-          
         </div>
       </div>
     </div>
