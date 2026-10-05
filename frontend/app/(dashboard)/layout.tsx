@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   Upload,
@@ -53,8 +53,50 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pageKey = pathname.split('/').pop() || 'dashboard';
+
+  const [userName, setUserName] = useState('Loading...');
+  const [userInitials, setUserInitials] = useState('..');
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        setUserName('Guest User');
+        setUserInitials('GU');
+        return;
+      }
+
+      try {
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const res = await fetch(`${API_URL}/api/auth/me`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const name = data.full_name || data.email.split('@')[0];
+          setUserName(name);
+          setUserInitials(name.substring(0, 2).toUpperCase());
+        } else {
+          setUserName('Guest User');
+          setUserInitials('GU');
+        }
+      } catch (err) {
+        setUserName('Guest User');
+        setUserInitials('GU');
+      }
+    };
+    fetchProfile();
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('access_token');
+    router.push('/login');
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground flex overflow-hidden">
@@ -111,12 +153,12 @@ export default function DashboardLayout({
         </nav>
 
         <div className="p-4 border-t border-border">
-          <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/60 hover:bg-muted transition-colors cursor-pointer group">
+          <div onClick={handleLogout} className="flex items-center gap-3 p-3 rounded-xl bg-muted/60 hover:bg-muted transition-colors cursor-pointer group">
             <div className="h-9 w-9 rounded-full bg-gradient-to-br from-primary to-[hsl(260,80%,58%)] flex items-center justify-center text-xs font-bold text-white shadow-md shadow-primary/25">
-              JD
+              {userInitials}
             </div>
             <div className="flex flex-col flex-1 min-w-0">
-              <span className="text-sm font-semibold text-foreground truncate">John Doe</span>
+              <span className="text-sm font-semibold text-foreground truncate">{userName}</span>
               <span className="text-xs text-muted-foreground">Pro Plan</span>
             </div>
             <LogOut className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
