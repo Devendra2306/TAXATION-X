@@ -3,16 +3,21 @@
 import React, { useState, useEffect } from 'react';
 import { 
   CheckCircle2, Edit2, AlertTriangle, ArrowRight, Save, 
-  User, Briefcase, Calculator, Building, Receipt, FileText, Download, ChevronRight 
+  User, Briefcase, Calculator, Building, Receipt, FileText, Download, ChevronRight, Lock, HeadphonesIcon
 } from 'lucide-react';
 import Link from 'next/link';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 
 export default function ReviewPage() {
   const [activeTab, setActiveTab] = useState('personal');
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [showCAUpsell, setShowCAUpsell] = useState(false);
+  const router = useRouter();
+
   const [parsedData, setParsedData] = useState<any>({
     gross_salary: 0,
     deductions_80c: 0,
@@ -28,7 +33,14 @@ export default function ReviewPage() {
     const dataStr = localStorage.getItem('parsedTaxData');
     if (dataStr) {
       try {
-        setParsedData(JSON.parse(dataStr));
+        const data = JSON.parse(dataStr);
+        setParsedData(data);
+        
+        // THE TRAP: If they have capital gains but selected the FREE plan (itr1), force upgrade.
+        const selectedPlan = localStorage.getItem('selectedPlan');
+        if (selectedPlan === 'itr1' && data.capital_gains > 0) {
+           setShowUpgrade(true);
+        }
       } catch (e) {}
     }
   }, []);
@@ -39,12 +51,20 @@ export default function ReviewPage() {
 
   const handleSave = async () => {
     setIsLoading(true);
-    // Simulate save
     setTimeout(() => {
       localStorage.setItem('parsedTaxData', JSON.stringify(parsedData));
       setIsEditing(false);
       setIsLoading(false);
     }, 800);
+  };
+
+  const handleProceed = () => {
+      const selectedPlan = localStorage.getItem('selectedPlan');
+      if (selectedPlan === 'itr1' && parsedData.capital_gains > 0) {
+          setShowUpgrade(true);
+      } else {
+          router.push('/compare');
+      }
   };
 
   const tabs = [
@@ -57,7 +77,24 @@ export default function ReviewPage() {
   const fmt = (val: number) => `₹${Number(val || 0).toLocaleString('en-IN')}`;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-20">
+    <div className="max-w-6xl mx-auto space-y-6 pb-20 relative">
+      
+      {/* CA Upsell Sticky Banner */}
+      <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-4 text-white flex flex-col sm:flex-row items-center justify-between shadow-lg shadow-orange-500/20">
+        <div className="flex items-center gap-3">
+          <div className="bg-white/20 p-2 rounded-xl">
+             <HeadphonesIcon className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h3 className="font-bold text-lg leading-tight">Afraid of making a mistake?</h3>
+            <p className="text-white/90 text-sm">Hire a NexTax Expert CA to review and file your return for you.</p>
+          </div>
+        </div>
+        <button onClick={() => setShowCAUpsell(true)} className="mt-4 sm:mt-0 bg-white text-orange-600 font-bold px-6 py-2.5 rounded-xl hover:shadow-lg transition-all shrink-0">
+          Book CA - ₹2,999
+        </button>
+      </div>
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <PageHeader
           title="Review Tax Data"
@@ -73,9 +110,9 @@ export default function ReviewPage() {
               <Edit2 size={16} /> Edit Data
             </button>
           )}
-          <Link href="/compare" className="btn-primary flex items-center gap-2">
+          <button onClick={handleProceed} className="btn-primary flex items-center gap-2">
             Compute Tax <ArrowRight size={16} />
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -107,7 +144,6 @@ export default function ReviewPage() {
         <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[500px]">
           <div className="p-6 md:p-8">
             <AnimatePresence mode="wait">
-              
               {activeTab === 'personal' && (
                 <motion.div key="personal" initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-10}}>
                   <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
@@ -115,20 +151,8 @@ export default function ReviewPage() {
                   </h2>
                   <div className="grid md:grid-cols-2 gap-6">
                     <div className="space-y-1.5">
-                      <label className="text-sm font-semibold text-slate-700">Permanent Account Number (PAN)</label>
-                      {isEditing ? (
-                        <input type="text" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none uppercase" value={parsedData.pan} onChange={(e) => handleChange('pan', e.target.value)} />
-                      ) : (
-                        <div className="px-4 py-3 bg-slate-50 rounded-xl border border-slate-100 font-medium text-slate-800 uppercase">{parsedData.pan || 'Not Provided'}</div>
-                      )}
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-semibold text-slate-700">Employer Name</label>
-                      {isEditing ? (
-                        <input type="text" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none" value={parsedData.employer_name} onChange={(e) => handleChange('employer_name', e.target.value)} />
-                      ) : (
-                        <div className="px-4 py-3 bg-slate-50 rounded-xl border border-slate-100 font-medium text-slate-800">{parsedData.employer_name || 'Not Provided'}</div>
-                      )}
+                      <label className="text-sm font-semibold text-slate-700">PAN Number</label>
+                      <div className="px-4 py-3 bg-slate-50 rounded-xl border border-slate-100 font-medium text-slate-800 uppercase">{parsedData.pan || 'Not Provided'}</div>
                     </div>
                   </div>
                 </motion.div>
@@ -140,9 +164,6 @@ export default function ReviewPage() {
                     <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                       <Briefcase className="text-emerald-500" /> Income Sources
                     </h2>
-                    <span className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-sm font-bold border border-emerald-100">
-                      Total: {fmt(Number(parsedData.gross_salary) + Number(parsedData.capital_gains) + Number(parsedData.other_income))}
-                    </span>
                   </div>
                   
                   <div className="space-y-6">
@@ -151,41 +172,24 @@ export default function ReviewPage() {
                       <div className="space-y-1.5">
                         <label className="text-sm font-semibold text-slate-700">Gross Salary</label>
                         {isEditing ? (
-                          <div className="relative">
-                            <span className="absolute left-4 top-2.5 text-slate-400 font-medium">₹</span>
-                            <input type="number" className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none" value={parsedData.gross_salary} onChange={(e) => handleChange('gross_salary', e.target.value)} />
-                          </div>
+                          <input type="number" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500" value={parsedData.gross_salary} onChange={(e) => handleChange('gross_salary', e.target.value)} />
                         ) : (
                           <div className="px-4 py-3 bg-white rounded-xl border border-slate-200 font-bold text-slate-800">{fmt(parsedData.gross_salary)}</div>
                         )}
                       </div>
                     </div>
 
-                    <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/50">
-                      <h3 className="font-semibold text-slate-800 mb-4">Other Income</h3>
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <label className="text-sm font-semibold text-slate-700">Capital Gains (Stocks/MF)</label>
-                          {isEditing ? (
-                            <div className="relative">
-                              <span className="absolute left-4 top-2.5 text-slate-400 font-medium">₹</span>
-                              <input type="number" className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none" value={parsedData.capital_gains} onChange={(e) => handleChange('capital_gains', e.target.value)} />
-                            </div>
-                          ) : (
-                            <div className="px-4 py-3 bg-white rounded-xl border border-slate-200 font-bold text-slate-800">{fmt(parsedData.capital_gains)}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-sm font-semibold text-slate-700">Interest Income</label>
-                          {isEditing ? (
-                            <div className="relative">
-                              <span className="absolute left-4 top-2.5 text-slate-400 font-medium">₹</span>
-                              <input type="number" className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none" value={parsedData.other_income} onChange={(e) => handleChange('other_income', e.target.value)} />
-                            </div>
-                          ) : (
-                            <div className="px-4 py-3 bg-white rounded-xl border border-slate-200 font-bold text-slate-800">{fmt(parsedData.other_income)}</div>
-                          )}
-                        </div>
+                    <div className="p-5 rounded-xl border border-rose-100 bg-rose-50/30">
+                      <h3 className="font-semibold text-rose-900 mb-4 flex items-center gap-2">
+                        Capital Gains (Stocks/MF) 
+                        {Number(parsedData.capital_gains) > 0 && <span className="text-xs bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-bold">Pro Plan Required</span>}
+                      </h3>
+                      <div className="space-y-1.5">
+                        {isEditing ? (
+                           <input type="number" className="w-full px-4 py-2.5 rounded-xl border border-rose-200 focus:ring-2 focus:ring-rose-500" value={parsedData.capital_gains} onChange={(e) => handleChange('capital_gains', e.target.value)} />
+                        ) : (
+                          <div className="px-4 py-3 bg-white rounded-xl border border-rose-200 font-bold text-rose-700">{fmt(parsedData.capital_gains)}</div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -194,72 +198,66 @@ export default function ReviewPage() {
 
               {activeTab === 'deductions' && (
                 <motion.div key="deductions" initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-10}}>
-                   <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                      <Receipt className="text-amber-500" /> Tax Deductions
-                    </h2>
-                  </div>
-                  
-                  <div className="grid gap-6">
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-semibold text-slate-700 flex justify-between">
-                        <span>Section 80C (LIC, ELSS, PPF)</span>
-                        <span className="text-indigo-600 font-medium">Max Limit: ₹1,50,000</span>
-                      </label>
-                      {isEditing ? (
-                        <div className="relative">
-                          <span className="absolute left-4 top-2.5 text-slate-400 font-medium">₹</span>
-                          <input type="number" className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none" value={parsedData.deductions_80c} onChange={(e) => handleChange('deductions_80c', e.target.value)} />
-                        </div>
-                      ) : (
-                        <div className="px-4 py-3 bg-slate-50 rounded-xl border border-slate-100 font-bold text-slate-800">{fmt(parsedData.deductions_80c)}</div>
-                      )}
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-semibold text-slate-700 flex justify-between">
-                        <span>Home Loan Interest (Section 24)</span>
-                        <span className="text-indigo-600 font-medium">Max Limit: ₹2,00,000</span>
-                      </label>
-                      {isEditing ? (
-                        <div className="relative">
-                          <span className="absolute left-4 top-2.5 text-slate-400 font-medium">₹</span>
-                          <input type="number" className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none" value={parsedData.home_loan_interest} onChange={(e) => handleChange('home_loan_interest', e.target.value)} />
-                        </div>
-                      ) : (
-                        <div className="px-4 py-3 bg-slate-50 rounded-xl border border-slate-100 font-bold text-slate-800">{fmt(parsedData.home_loan_interest)}</div>
-                      )}
-                    </div>
-                  </div>
+                   <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+                     <Receipt className="text-amber-500" /> Tax Deductions
+                   </h2>
+                   <div className="px-4 py-3 bg-slate-50 rounded-xl border border-slate-100 font-bold text-slate-800">80C: {fmt(parsedData.deductions_80c)}</div>
                 </motion.div>
               )}
-
               {activeTab === 'taxes' && (
                 <motion.div key="taxes" initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-10}}>
-                   <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-                    <FileText className="text-rose-500" /> Taxes Already Paid (TDS)
-                  </h2>
-                  <div className="p-6 bg-rose-50/50 border border-rose-100 rounded-2xl">
-                    <p className="text-sm text-slate-600 mb-4">This is the total tax already deducted by your employer or banks before paying you.</p>
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-semibold text-slate-700">Total TDS Deducted</label>
-                      {isEditing ? (
-                        <div className="relative">
-                          <span className="absolute left-4 top-2.5 text-slate-400 font-medium">₹</span>
-                          <input type="number" className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-rose-200 focus:ring-2 focus:ring-rose-500 outline-none" value={parsedData.tds_deducted} onChange={(e) => handleChange('tds_deducted', e.target.value)} />
-                        </div>
-                      ) : (
-                        <div className="px-4 py-3 bg-white rounded-xl border border-rose-200 font-bold text-rose-700 text-lg">{fmt(parsedData.tds_deducted)}</div>
-                      )}
-                    </div>
-                  </div>
+                   <h2 className="text-xl font-bold text-slate-800 mb-6">Taxes Already Paid (TDS)</h2>
+                   <div className="px-4 py-3 bg-slate-50 rounded-xl border border-slate-100 font-bold text-slate-800">{fmt(parsedData.tds_deducted)}</div>
                 </motion.div>
               )}
-
             </AnimatePresence>
           </div>
         </div>
       </div>
+
+      {/* MODALS */}
+
+      {/* Upgrade Trap Modal */}
+      {showUpgrade && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <motion.div initial={{scale:0.95, opacity:0}} animate={{scale:1, opacity:1}} className="bg-white rounded-3xl max-w-md w-full p-8 text-center shadow-2xl">
+            <div className="w-16 h-16 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Lock className="w-8 h-8 text-rose-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">Upgrade to Pro</h2>
+            <p className="text-slate-600 mb-6">We detected <strong className="text-slate-800">Capital Gains</strong> from your uploads. The FREE plan only supports basic Salary income. Please upgrade to ITR-2 to file these taxes legally.</p>
+            <div className="space-y-3">
+              <button onClick={() => { localStorage.setItem('selectedPlan', 'itr2'); setShowUpgrade(false); }} className="w-full bg-rose-600 text-white font-bold py-3 rounded-xl hover:bg-rose-700">
+                Upgrade to ITR-2 (₹999)
+              </button>
+              <button onClick={() => setShowUpgrade(false)} className="w-full text-slate-500 font-medium py-3 hover:text-slate-800">
+                Cancel & Remove Capital Gains
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* CA Upsell Modal */}
+      {showCAUpsell && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <motion.div initial={{scale:0.95, opacity:0}} animate={{scale:1, opacity:1}} className="bg-white rounded-3xl max-w-md w-full p-8 text-center shadow-2xl border-4 border-orange-500">
+             <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <HeadphonesIcon className="w-8 h-8 text-orange-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">Expert CA Assisted Filing</h2>
+            <p className="text-slate-600 mb-6">A verified Chartered Accountant will be assigned to review your documents, maximize your tax savings, and file on your behalf.</p>
+            <div className="space-y-3">
+              <button onClick={() => { alert("Redirect to Stripe/Razorpay Checkout for ₹2999!"); setShowCAUpsell(false); }} className="w-full bg-orange-600 text-white font-bold py-3 rounded-xl hover:bg-orange-700">
+                Pay ₹2,999 & Assign CA
+              </button>
+              <button onClick={() => setShowCAUpsell(false)} className="w-full text-slate-500 font-medium py-3 hover:text-slate-800">
+                No thanks, I'll file myself
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
