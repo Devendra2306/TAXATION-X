@@ -3,6 +3,8 @@ from typing import List, Dict
 from pydantic import BaseModel
 import google.generativeai as genai
 from app.config import settings
+from app.routers.auth import get_current_user
+from app.models.user import User
 
 router = APIRouter()
 
@@ -22,7 +24,7 @@ class ChatRequest(BaseModel):
     user_context: dict = None
 
 @router.post("")
-def chat_with_expert(request: ChatRequest):
+def chat_with_expert(request: ChatRequest, current_user: User = Depends(get_current_user)):
     if not model:
         raise HTTPException(status_code=500, detail="AI engine not configured")
         

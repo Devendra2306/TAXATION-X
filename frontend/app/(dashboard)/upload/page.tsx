@@ -185,7 +185,7 @@ export default function UploadPage() {
               
               <label className="cursor-pointer bg-slate-900 text-white font-bold py-3.5 px-8 rounded-xl hover:bg-slate-800 transition-colors">
                 Browse Files
-                <input type="file" className="hidden" accept=".pdf,.csv,.jpg,.jpeg,.png" onChange={handleFileChange} />
+                <input type="file" className="hidden" accept=".pdf" onChange={handleFileChange} />
               </label>
               {status === 'error' && <p className="text-rose-500 text-sm mt-4 font-medium">Upload failed. Please try again.</p>}
             </>
