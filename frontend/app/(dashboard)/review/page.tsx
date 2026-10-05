@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   CheckCircle2, Edit2, AlertTriangle, ArrowRight, Save, 
-  User, Briefcase, Calculator, Building, Receipt, FileText, Download 
+  User, Briefcase, Calculator, Building, Receipt, FileText, Download, ChevronRight 
 } from 'lucide-react';
 import Link from 'next/link';
 import { PageHeader } from '@/components/ui/PageHeader';
