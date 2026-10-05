@@ -1,29 +1,27 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  TrendingUp,
-  Wallet,
-  PieChart,
-  AlertCircle,
   ArrowRight,
   Upload,
   Lightbulb,
   FileText,
   Scale,
   Sparkles,
-  Clock,
+  CheckCircle2,
+  ChevronRight,
+  Activity,
+  HelpCircle
 } from 'lucide-react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
-import { StatCard } from '@/components/ui/StatCard';
+import { motion, AnimatePresence } from 'framer-motion';
 import { FilingProgress } from '@/components/ui/FilingProgress';
 
 const quickActions = [
   {
     href: '/upload',
     icon: Upload,
-    title: 'Upload Form 16',
+    title: 'Upload Documents',
     desc: 'Auto-extract data using our AI engine to start your filing process.',
     gradient: 'from-primary/15 via-primary/5 to-transparent',
     iconBg: 'bg-primary/15',
@@ -58,9 +56,47 @@ const quickActions = [
   },
 ];
 
-const recentActivity: any[] = [];
-
 export default function DashboardPage() {
+  const [surveyStep, setSurveyStep] = useState(0);
+  const [answers, setAnswers] = useState({
+    salary: false,
+    stocks: false,
+    business: false,
+    above50L: false
+  });
+  const [resultItr, setResultItr] = useState<string | null>(null);
+
+  const handleAnswer = (key: string, value: boolean) => {
+    const newAnswers = { ...answers, [key]: value };
+    setAnswers(newAnswers);
+    
+    if (surveyStep < 3) {
+      setSurveyStep(surveyStep + 1);
+    } else {
+      if (newAnswers.business) {
+        setResultItr('ITR-4 (Sugam)');
+      } else if (newAnswers.stocks || newAnswers.above50L) {
+        setResultItr('ITR-2');
+      } else {
+        setResultItr('ITR-1 (Sahaj)');
+      }
+      setSurveyStep(4);
+    }
+  };
+
+  const resetSurvey = () => {
+    setSurveyStep(0);
+    setResultItr(null);
+    setAnswers({ salary: false, stocks: false, business: false, above50L: false });
+  };
+
+  const surveyQuestions = [
+    { key: 'salary', text: 'Do you have income from a Salary or Pension?' },
+    { key: 'stocks', text: 'Did you sell any Stocks, Mutual Funds, or Crypto this year?' },
+    { key: 'business', text: 'Do you run a Business or work as a Freelancer/Consultant?' },
+    { key: 'above50L', text: 'Is your total income for the financial year above ₹50 Lakhs?' },
+  ];
+
   return (
     <div className="space-y-8">
       {/* Welcome banner */}
@@ -77,7 +113,7 @@ export default function DashboardPage() {
               <span className="text-xs font-semibold uppercase tracking-wider text-white/80">Welcome to NexTax</span>
             </div>
             <h2 className="text-2xl md:text-3xl font-bold mb-2">Ready to start your tax filing?</h2>
-            <p className="text-white/80 text-sm max-w-md">Upload your Form 16 and let our AI handle the rest. We will instantly analyze your data and find the best tax-saving opportunities.</p>
+            <p className="text-white/80 text-sm max-w-md">Our AI handles everything from finding deductions to filling out your forms. Let's get started!</p>
           </div>
           <Link href="/upload" className="inline-flex items-center gap-2 bg-white text-primary font-semibold px-6 py-3 rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all shrink-0">
             Start Filing <ArrowRight className="h-4 w-4" />
@@ -85,12 +121,72 @@ export default function DashboardPage() {
         </div>
       </motion.div>
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <StatCard title="Total Income" value="---" icon={Wallet} trend="Pending Upload" trendUp={false} accent="primary" index={0} />
-        <StatCard title="Tax Liability (Est)" value="---" icon={PieChart} trend="Pending Upload" trendUp={false} accent="rose" index={1} />
-        <StatCard title="Potential Savings" value="---" icon={TrendingUp} trend="Pending Upload" trendUp={false} accent="emerald" index={2} />
-        <StatCard title="Missing Deductions" value="---" icon={AlertCircle} trend="Pending Upload" isAlert={false} accent="amber" index={3} />
+      {/* Interactive Survey */}
+      <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
+        <div className="border-b border-border p-5 bg-slate-50/50">
+          <div className="flex items-center gap-2">
+            <HelpCircle className="h-5 w-5 text-indigo-600" />
+            <h2 className="text-lg font-bold text-foreground">Find Your ITR Form</h2>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">Answer 4 quick questions to know exactly which form you need to file.</p>
+        </div>
+        
+        <div className="p-6 md:p-8">
+          <AnimatePresence mode="wait">
+            {surveyStep < 4 ? (
+              <motion.div
+                key={surveyStep}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.2 }}
+                className="max-w-xl mx-auto text-center"
+              >
+                <div className="text-sm font-semibold text-indigo-600 mb-4">Question {surveyStep + 1} of 4</div>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-800 mb-8">{surveyQuestions[surveyStep].text}</h3>
+                
+                <div className="flex items-center justify-center gap-4">
+                  <button 
+                    onClick={() => handleAnswer(surveyQuestions[surveyStep].key, true)}
+                    className="flex-1 max-w-xs py-3 px-6 rounded-xl border-2 border-indigo-100 hover:border-indigo-600 hover:bg-indigo-50 text-indigo-900 font-semibold transition-all"
+                  >
+                    Yes
+                  </button>
+                  <button 
+                    onClick={() => handleAnswer(surveyQuestions[surveyStep].key, false)}
+                    className="flex-1 max-w-xs py-3 px-6 rounded-xl border-2 border-slate-200 hover:border-slate-400 hover:bg-slate-50 text-slate-700 font-semibold transition-all"
+                  >
+                    No
+                  </button>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="result"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="max-w-xl mx-auto text-center"
+              >
+                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 className="h-8 w-8 text-emerald-600" />
+                </div>
+                <h3 className="text-2xl font-bold text-slate-800 mb-2">You should file {resultItr}</h3>
+                <p className="text-slate-600 mb-8">
+                  Based on your income sources, {resultItr} is the correct form for you. Don't worry, our system will automatically select this for you when you upload your documents.
+                </p>
+                
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                  <Link href="/upload" className="btn-primary w-full sm:w-auto px-8">
+                    Upload Documents Now
+                  </Link>
+                  <button onClick={resetSurvey} className="text-slate-500 hover:text-slate-700 font-medium text-sm">
+                    Retake Survey
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -125,18 +221,6 @@ export default function DashboardPage() {
         {/* Filing Progress */}
         <div className="space-y-5">
           <FilingProgress />
-        </div>
-      </div>
-
-      {/* Recent Activity */}
-      <div className="space-y-5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-foreground">Recent Activity</h2>
-        </div>
-        <div className="card-elevated p-8 text-center border-border overflow-hidden">
-          <FileText className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-          <h4 className="font-semibold text-foreground mb-1">No Activity Yet</h4>
-          <p className="text-sm text-muted-foreground max-w-sm mx-auto">Upload your Form 16 or chat with the AI expert to see your activity history here.</p>
         </div>
       </div>
     </div>
