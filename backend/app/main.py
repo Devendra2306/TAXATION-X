@@ -13,7 +13,7 @@ if os.getenv("SENTRY_DSN"):
 
 from .database import engine
 from . import models
-from .routers import auth, upload, chat, profile
+from .routers import auth, upload, chat, profile, itr
 
 # Create DB tables
 models.Base.metadata.create_all(bind=engine)
@@ -45,3 +45,4 @@ app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(upload.router, prefix="/api/upload", tags=["upload"])
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 app.include_router(profile.router, prefix="/api/profile", tags=["profile"])
+app.include_router(itr.router)
