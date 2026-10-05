@@ -198,7 +198,7 @@ export default function LandingPage() {
               
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 flex-1">
                 {[
-                  { icon: <FileText size={22}/>, title: 'Income Tax', desc: 'ITR Filing & Planning', href: '/upload', color: 'text-blue-600', bg: 'bg-blue-50' },
+                  { icon: <FileText size={22}/>, title: 'Income Tax', desc: 'ITR Filing & Planning', href: '/select-plan', color: 'text-blue-600', bg: 'bg-blue-50' },
                   { icon: <Landmark size={22}/>, title: 'GST Services', desc: 'Registration & Returns', href: '/contact', color: 'text-purple-600', bg: 'bg-purple-50' },
                   { icon: <Calculator size={22}/>, title: 'TDS Services', desc: 'TDS Filing & Compliance', href: '/contact', color: 'text-emerald-600', bg: 'bg-emerald-50' },
                   { icon: <Building2 size={22}/>, title: 'Company Setup', desc: 'Private, LLP, OPC', href: '/contact', color: 'text-amber-600', bg: 'bg-amber-50' },
