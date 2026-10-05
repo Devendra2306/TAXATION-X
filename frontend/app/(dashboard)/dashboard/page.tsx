@@ -115,7 +115,7 @@ export default function DashboardPage() {
             <h2 className="text-2xl md:text-3xl font-bold mb-2">Ready to start your tax filing?</h2>
             <p className="text-white/80 text-sm max-w-md">Our AI handles everything from finding deductions to filling out your forms. Let's get started!</p>
           </div>
-          <Link href="/upload" className="inline-flex items-center gap-2 bg-white text-primary font-semibold px-6 py-3 rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all shrink-0">
+          <Link href="/select-plan" className="inline-flex items-center gap-2 bg-white text-primary font-semibold px-6 py-3 rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all shrink-0">
             Start Filing <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
@@ -176,7 +176,7 @@ export default function DashboardPage() {
                 </p>
                 
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                  <Link href="/upload" className="btn-primary w-full sm:w-auto px-8">
+                  <Link href="/select-plan" className="btn-primary w-full sm:w-auto px-8">
                     Upload Documents Now
                   </Link>
                   <button onClick={resetSurvey} className="text-slate-500 hover:text-slate-700 font-medium text-sm">
