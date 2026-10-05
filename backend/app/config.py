@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     
     GEMINI_API_KEY: str = ""
     
+    # External APIs for PAN Verification / E-Filing
+    EXTERNAL_API_KEY: str = ""
+    EXTERNAL_API_SECRET: str = ""
+    
     class Config:
         env_file = ".env"
 

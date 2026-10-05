@@ -8,6 +8,14 @@ from app.models.user import User
 
 router = APIRouter(prefix="/api/itr", tags=["ITR E-Filing"])
 
+@router.post("/verify-pan")
+async def verify_pan(request: OTPRequest, current_user: User = Depends(get_current_user)):
+    """
+    Verify PAN using external API
+    """
+    result = await eri_service.verify_pan_number(request.pan_number)
+    return result
+
 @router.post("/generate-otp")
 async def generate_otp(request: OTPRequest, current_user: User = Depends(get_current_user)):
     """
