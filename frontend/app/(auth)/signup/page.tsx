@@ -55,9 +55,9 @@ export default function SignupPage() {
       if (loginResponse.ok) {
         const loginData = await loginResponse.json();
         localStorage.setItem('access_token', loginData.access_token);
-        router.push('/upload');
+        router.push('/select-plan');
       } else {
-        router.push('/login');
+        router.push('/select-plan');
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Registration failed');
@@ -170,7 +170,7 @@ export default function SignupPage() {
                   if (loginResponse.ok) {
                     const data = await loginResponse.json();
                     localStorage.setItem('access_token', data.access_token);
-                    router.push('/upload');
+                    router.push('/select-plan');
                   } else {
                     throw new Error('Failed to login with Google on backend');
                   }

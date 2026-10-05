@@ -34,7 +34,7 @@ export default function LoginPage() {
       }
       const data = await response.json();
       localStorage.setItem('access_token', data.access_token);
-      router.push('/upload');
+      router.push('/select-plan');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
@@ -183,7 +183,7 @@ export default function LoginPage() {
                   if (loginResponse.ok) {
                     const data = await loginResponse.json();
                     localStorage.setItem('access_token', data.access_token);
-                    router.push('/upload');
+                    router.push('/select-plan');
                   } else {
                     throw new Error('Failed to login with Google on backend');
                   }
