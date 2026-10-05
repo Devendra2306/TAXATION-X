@@ -58,11 +58,7 @@ const quickActions = [
   },
 ];
 
-const recentActivity = [
-  { title: 'Form 16 Uploaded', desc: 'Auto-parsed successfully', time: '2h ago', icon: FileText, color: 'text-emerald-600', bg: 'bg-emerald-50 ring-emerald-200' },
-  { title: 'Tax Regime Analyzed', desc: 'New regime is better', time: '5h ago', icon: Scale, color: 'text-primary', bg: 'bg-primary/10 ring-primary/20' },
-  { title: 'Profile Updated', desc: 'Added HRA details', time: '1d ago', icon: AlertCircle, color: 'text-blue-600', bg: 'bg-blue-50 ring-blue-200' },
-];
+const recentActivity: any[] = [];
 
 export default function DashboardPage() {
   return (
@@ -78,23 +74,23 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2 mb-2">
               <Sparkles className="h-4 w-4 text-amber-300" />
-              <span className="text-xs font-semibold uppercase tracking-wider text-white/80">Welcome back, John</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-white/80">Welcome to NexTax</span>
             </div>
-            <h2 className="text-2xl md:text-3xl font-bold mb-2">Your tax filing is 50% complete</h2>
-            <p className="text-white/80 text-sm max-w-md">Upload your Form 16 and let our AI handle the rest. You could save up to ₹1,45,000 this year.</p>
+            <h2 className="text-2xl md:text-3xl font-bold mb-2">Ready to start your tax filing?</h2>
+            <p className="text-white/80 text-sm max-w-md">Upload your Form 16 and let our AI handle the rest. We will instantly analyze your data and find the best tax-saving opportunities.</p>
           </div>
           <Link href="/upload" className="inline-flex items-center gap-2 bg-white text-primary font-semibold px-6 py-3 rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all shrink-0">
-            Continue Filing <ArrowRight className="h-4 w-4" />
+            Start Filing <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       </motion.div>
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <StatCard title="Total Income" value="₹24,50,000" icon={Wallet} trend="+12%" trendUp accent="primary" index={0} />
-        <StatCard title="Tax Liability (Est)" value="₹4,12,000" icon={PieChart} trend="-5%" trendUp={false} accent="rose" index={1} />
-        <StatCard title="Potential Savings" value="₹1,45,000" icon={TrendingUp} trend="+24%" trendUp accent="emerald" index={2} />
-        <StatCard title="Missing Deductions" value="3 Found" icon={AlertCircle} trend="Action Needed" isAlert accent="amber" index={3} />
+        <StatCard title="Total Income" value="---" icon={Wallet} trend="Pending Upload" trendUp={false} accent="primary" index={0} />
+        <StatCard title="Tax Liability (Est)" value="---" icon={PieChart} trend="Pending Upload" trendUp={false} accent="rose" index={1} />
+        <StatCard title="Potential Savings" value="---" icon={TrendingUp} trend="Pending Upload" trendUp={false} accent="emerald" index={2} />
+        <StatCard title="Missing Deductions" value="---" icon={AlertCircle} trend="Pending Upload" isAlert={false} accent="amber" index={3} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -136,30 +132,11 @@ export default function DashboardPage() {
       <div className="space-y-5">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-foreground">Recent Activity</h2>
-          <button className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors">View all</button>
         </div>
-        <div className="card-elevated divide-y divide-border overflow-hidden">
-          {recentActivity.map((item, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3 + i * 0.08 }}
-              className="flex items-center gap-4 p-4 hover:bg-muted/40 transition-colors"
-            >
-              <div className={`p-2.5 rounded-xl ring-1 ${item.bg}`}>
-                <item.icon className={`h-4 w-4 ${item.color}`} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h4 className="font-semibold text-sm text-foreground">{item.title}</h4>
-                <p className="text-xs text-muted-foreground">{item.desc}</p>
-              </div>
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
-                <Clock className="h-3 w-3" />
-                {item.time}
-              </div>
-            </motion.div>
-          ))}
+        <div className="card-elevated p-8 text-center border-border overflow-hidden">
+          <FileText className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+          <h4 className="font-semibold text-foreground mb-1">No Activity Yet</h4>
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto">Upload your Form 16 or chat with the AI expert to see your activity history here.</p>
         </div>
       </div>
     </div>
