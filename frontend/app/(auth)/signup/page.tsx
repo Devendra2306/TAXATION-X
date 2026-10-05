@@ -9,12 +9,23 @@ import { Logo } from '@/components/Logo';
 
 export default function SignupPage() {
   const router = useRouter();
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    if (loading) {
+      timeoutId = setTimeout(() => setIsSlowLoading(true), 3500);
+    } else {
+      setIsSlowLoading(false);
+    }
+    return () => clearTimeout(timeoutId);
+  }, [loading]);
+
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
     password: '',
   });
   const [loading, setLoading] = useState(false);
+  const [isSlowLoading, setIsSlowLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

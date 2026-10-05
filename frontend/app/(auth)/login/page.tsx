@@ -11,7 +11,18 @@ export default function LoginPage() {
   const [showOtherOptions, setShowOtherOptions] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isSlowLoading, setIsSlowLoading] = useState(false);
   const router = useRouter();
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    if (loading) {
+      timeoutId = setTimeout(() => setIsSlowLoading(true), 3500);
+    } else {
+      setIsSlowLoading(false);
+    }
+    return () => clearTimeout(timeoutId);
+  }, [loading]);
+
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -277,7 +288,7 @@ export default function LoginPage() {
                 </button>
               </div>
 
-              <button type="submit" disabled={loading} className="btn-primary w-full py-3.5 mt-2">
+              <button type="submit" disabled={loading} className="btn-primary w-full py-3.5 mt-2 relative overflow-hidden">
                 {loading ? 'Logging in...' : 'Login'}
               </button>
 
