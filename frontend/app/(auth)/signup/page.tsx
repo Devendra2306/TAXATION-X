@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ShieldCheck, Loader2, CheckCircle2, ArrowRight } from 'lucide-react';
@@ -9,6 +9,15 @@ import { Logo } from '@/components/Logo';
 
 export default function SignupPage() {
   const router = useRouter();
+
+
+  const [formData, setFormData] = useState({
+    full_name: '',
+    email: '',
+    password: '',
+  });
+  const [loading, setLoading] = useState(false);
+  const [isSlowLoading, setIsSlowLoading] = useState(false);
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
     if (loading) {
@@ -18,14 +27,6 @@ export default function SignupPage() {
     }
     return () => clearTimeout(timeoutId);
   }, [loading]);
-
-  const [formData, setFormData] = useState({
-    full_name: '',
-    email: '',
-    password: '',
-  });
-  const [loading, setLoading] = useState(false);
-  const [isSlowLoading, setIsSlowLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
