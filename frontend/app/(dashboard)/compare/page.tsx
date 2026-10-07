@@ -5,7 +5,10 @@ import { Scale, ArrowRight, CheckCircle2, TrendingDown, TrendingUp } from 'lucid
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 
+import { useRouter } from 'next/navigation';
+
 export default function ComparePage() {
+  const router = useRouter();
   const [selectedRegime, setSelectedRegime] = useState<'new' | 'old'>('new');
   const [data, setData] = useState({
     gross_salary: 0,
@@ -13,19 +16,41 @@ export default function ComparePage() {
     tds_deducted: 0
   });
 
+  const [isComputing, setIsComputing] = useState(true);
+  const [dbResult, setDbResult] = useState<any>(null);
+
   useEffect(() => {
-    const saved = localStorage.getItem('parsedTaxData');
-    if (saved) {
+    const computeTax = async () => {
+      const token = localStorage.getItem('access_token');
+      if (!token) return router.push('/login');
+      
       try {
-        const parsed = JSON.parse(saved);
-        setData({
-          gross_salary: parsed.gross_salary || 0,
-          deductions_80c: parsed.deductions_80c || 0,
-          tds_deducted: parsed.tds_deducted || 0
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const res = await fetch(`${API_URL}/api/tax/compute`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
         });
-      } catch (e) {}
-    }
-  }, []);
+        
+        if (res.ok) {
+          const result = await res.json();
+          setDbResult(result);
+          // Set recommendation
+          setSelectedRegime(result.recommendation.regime);
+          // Just setting basic data for UI rendering if needed
+          setData({
+             gross_salary: result.old_regime.gross_income,
+             deductions_80c: result.old_regime.total_deductions - 50000,
+             tds_deducted: result.recommendation.refund > 0 ? (result.recommendation.refund + Math.min(result.old_regime.total_tax, result.new_regime.total_tax)) : 0
+          });
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsComputing(false);
+      }
+    };
+    computeTax();
+  }, [router]);
 
   const calculateTax = () => {
     const s = data.gross_salary;

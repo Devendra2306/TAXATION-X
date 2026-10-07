@@ -30,20 +30,37 @@ export default function ReviewPage() {
   });
 
   useEffect(() => {
-    const dataStr = localStorage.getItem('parsedTaxData');
-    if (dataStr) {
+    const fetchProfile = async () => {
+      const token = localStorage.getItem('access_token');
+      if (!token) return router.push('/login');
+      
       try {
-        const data = JSON.parse(dataStr);
-        setParsedData(data);
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const res = await fetch(`${API_URL}/api/profile`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
         
-        // THE TRAP: If they have capital gains but selected the FREE plan (itr1), force upgrade.
-        const selectedPlan = localStorage.getItem('selectedPlan');
-        if (selectedPlan === 'itr1' && data.capital_gains > 0) {
-           setShowUpgrade(true);
+        if (res.ok) {
+          const data = await res.json();
+          // Fallback to empty values if completely new
+          const merged = { ...parsedData, ...data };
+          setParsedData(merged);
+          
+          // Cache in local storage for chat widget and quick access
+          localStorage.setItem('parsedTaxData', JSON.stringify(merged));
+          
+          const selectedPlan = localStorage.getItem('selectedPlan');
+          if (selectedPlan === 'itr1' && merged.capital_gains > 0) {
+             setShowUpgrade(true);
+          }
         }
-      } catch (e) {}
-    }
-  }, []);
+      } catch (err) {
+        console.error("Failed to load profile", err);
+      }
+    };
+    
+    fetchProfile();
+  }, [router]);
 
   const handleChange = (field: string, value: string) => {
     setParsedData({ ...parsedData, [field]: value });
@@ -51,11 +68,25 @@ export default function ReviewPage() {
 
   const handleSave = async () => {
     setIsLoading(true);
-    setTimeout(() => {
+    const token = localStorage.getItem('access_token');
+    
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      await fetch(`${API_URL}/api/profile`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(parsedData)
+      });
       localStorage.setItem('parsedTaxData', JSON.stringify(parsedData));
+    } catch (err) {
+      console.error(err);
+    } finally {
       setIsEditing(false);
       setIsLoading(false);
-    }, 800);
+    }
   };
 
   const handleProceed = () => {
