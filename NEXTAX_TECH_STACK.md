@@ -73,3 +73,183 @@ NexTax is an AI-first tax filing and optimization platform designed to replace c
 1.  **Why Gemini AI over Regex?** Traditional tax platforms use rigid Regex/OCR that breaks if a Form 16 looks slightly different. Gemini handles unstructured, messy PDFs flawlessly.
 2.  **Why decoupled Frontend/Backend?** Vercel is best-in-class for Next.js delivery, but terrible for running heavy Python AI workloads. Keeping FastAPI on Render allows for long-running PDF parsing and AI generation without Vercel's strict serverless timeout limits.
 3.  **Why "Freemium" via ITR-1?** ITR-1 covers 70% of the Indian salaried workforce. Offering it for free is a massive user acquisition strategy, allowing the platform to monetize through CA upsells and Capital Gains cross-sells.
+
+## 5. Directory Structure
+
+```text
+OFS TAXATION/
+├── .env.production.example
+├── .gitignore
+├── AGENTS.md
+├── append_tree.py
+├── build_new_flow.py
+├── docker-compose.yml
+├── fix_auth_performance.py
+├── generate_demo_pdf.py
+├── implementation_plan.md
+├── ITR-Platform-Technical-Architecture.md
+├── NEXTAX_TECH_STACK.md
+├── patch_auth.py
+├── render.yaml
+├── tree.txt
+├── update_business_model.py
+├── update_dashboard.py
+├── update_review.py
+├── update_upload.py
+├── .archify/
+    ├── sequence-web-request-cache-20260930-213327/
+        ├── candidate.json
+        ├── web-request-cache-2.browser-check.json
+        ├── web-request-cache-2.delivery.json
+        ├── web-request-cache-2.finalize-summary.json
+        ├── web-request-cache-2.finalize.json
+        ├── web-request-cache-2.html
+        ├── web-request-cache-3.browser-check.json
+        ├── web-request-cache-3.delivery.json
+        ├── web-request-cache-3.finalize-summary.json
+        ├── web-request-cache-3.finalize.json
+        ├── web-request-cache-3.html
+        ├── web-request-cache.browser-check.json
+        ├── web-request-cache.delivery.json
+        ├── web-request-cache.finalize-summary.json
+        ├── web-request-cache.finalize.json
+        ├── web-request-cache.html
+├── backend/
+    ├── .env
+    ├── .env.example
+    ├── celery_app.py
+    ├── Dockerfile
+    ├── ofs_tax.db
+    ├── requirements.txt
+    ├── app/
+        ├── config.py
+        ├── database.py
+        ├── main.py
+        ├── core/
+            ├── security.py
+        ├── documents/
+            ├── router.py
+        ├── export/
+            ├── generator.py
+            ├── router.py
+        ├── models/
+            ├── document.py
+            ├── filing.py
+            ├── tax_computation.py
+            ├── tax_profile.py
+            ├── user.py
+            ├── __init__.py
+        ├── parsing/
+            ├── form16.py
+            ├── tasks.py
+            ├── __init__.py
+            ├── extractors/
+                ├── ai_fallback.py
+                ├── rule_based.py
+        ├── routers/
+            ├── auth.py
+            ├── chat.py
+            ├── itr.py
+            ├── profile.py
+            ├── upload.py
+        ├── schemas/
+            ├── itr.py
+            ├── user.py
+            ├── __init__.py
+        ├── services/
+            ├── eri_service.py
+            ├── __init__.py
+        ├── tax_engine/
+            ├── calculator.py
+            ├── router.py
+            ├── slabs.py
+├── frontend/
+    ├── .env.example
+    ├── .env.local
+    ├── .gitignore
+    ├── AGENTS.md
+    ├── CLAUDE.md
+    ├── Dockerfile
+    ├── eslint.config.mjs
+    ├── next-env.d.ts
+    ├── next.config.ts
+    ├── package-lock.json
+    ├── package.json
+    ├── postcss.config.mjs
+    ├── README.md
+    ├── tailwind.config.ts
+    ├── tsconfig.json
+    ├── app/
+        ├── favicon.ico
+        ├── globals.css
+        ├── layout.tsx
+        ├── page.tsx
+        ├── (auth)/
+            ├── login/
+                ├── page.tsx
+            ├── signup/
+                ├── page.tsx
+        ├── (dashboard)/
+            ├── layout.tsx
+            ├── ais/
+                ├── page.tsx
+            ├── chat/
+                ├── page.tsx
+            ├── compare/
+                ├── page.tsx
+            ├── dashboard/
+                ├── page.tsx
+            ├── export/
+                ├── page.tsx
+            ├── optimizer/
+                ├── page.tsx
+            ├── refund/
+                ├── page.tsx
+            ├── review/
+                ├── page.tsx
+            ├── select-plan/
+                ├── page.tsx
+            ├── upload/
+                ├── page.tsx
+            ├── verify-pan/
+                ├── page.tsx
+        ├── about/
+            ├── page.tsx
+        ├── advance-tax-calculator/
+            ├── page.tsx
+        ├── careers/
+            ├── page.tsx
+        ├── contact/
+            ├── page.tsx
+        ├── hra-calculator/
+            ├── page.tsx
+        ├── nps-calculator/
+            ├── page.tsx
+        ├── pricing/
+            ├── page.tsx
+        ├── sip-calculator/
+            ├── page.tsx
+        ├── tax-calculator/
+            ├── page.tsx
+        ├── trust/
+            ├── page.tsx
+    ├── components/
+        ├── Chatbot.tsx
+        ├── Logo.tsx
+        ├── ui/
+            ├── FilingProgress.tsx
+            ├── PageHeader.tsx
+            ├── StatCard.tsx
+    ├── lib/
+        ├── firebase.ts
+        ├── utils.ts
+    ├── public/
+        ├── file.svg
+        ├── globe.svg
+        ├── next.svg
+        ├── vercel.svg
+        ├── window.svg
+├── research/
+    ├── ITR-Market-Research.md
+    ├── WhatsApp-Business-API-Research.md
+```
