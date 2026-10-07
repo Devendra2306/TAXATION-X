@@ -48,14 +48,20 @@ async def verify_pan_number(pan_number: str) -> dict:
         
     async with httpx.AsyncClient() as client:
         try:
-            # Sandbox PAN Verification Endpoint
-            response = await client.get(
-                f"{ERI_API_BASE}/kyc/pan/{pan_number}",
+            # Sandbox PAN Verification Endpoint (Requires POST, consent, and reason)
+            response = await client.post(
+                f"{ERI_API_BASE}/kyc/pan/verify",
                 headers={
                     "Authorization": f"Bearer {token}",
                     "x-api-key": ERI_API_KEY,
                     "x-api-version": "1.0",
-                    "accept": "application/json"
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "@entity": "in.co.sandbox.kyc.pan_verification.request",
+                    "pan": pan_number,
+                    "consent": "Y",
+                    "reason": "Tax filing onboarding"
                 }
             )
             
@@ -63,13 +69,15 @@ async def verify_pan_number(pan_number: str) -> dict:
                 data = response.json().get("data", {})
                 status = data.get("status")
                 
-                if status != "VALID":
+                # Some APIs return VALID, others return valid = true
+                is_valid = status == "VALID" or data.get("valid") is True
+                if not is_valid and status: # If status exists but is not VALID
                     raise HTTPException(status_code=400, detail="PAN is invalid according to Government database.")
                     
                 return {
                     "status": "success", 
                     "verified": True, 
-                    "name": data.get("full_name", "Verified User"), 
+                    "name": data.get("full_name", data.get("name_as_per_pan", "Verified User")), 
                     "raw": data
                 }
             else:
