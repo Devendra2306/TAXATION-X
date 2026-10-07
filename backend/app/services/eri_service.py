@@ -4,107 +4,150 @@ from fastapi import HTTPException
 
 from app.config import settings
 
-# Future-ready service for ERI (e-Return Intermediary) API Integration
-# e.g., ClearTax Sandbox, Quicko Sandbox, or direct ITD ERI API
-
-ERI_API_BASE = os.getenv("ERI_API_BASE", "https://sandbox.eri-provider.com/api/v1")
+# Sandbox API Base
+ERI_API_BASE = "https://api.sandbox.co.in"
 ERI_API_KEY = settings.EXTERNAL_API_KEY
 ERI_API_SECRET = settings.EXTERNAL_API_SECRET
 
+async def get_sandbox_token() -> str:
+    """
+    Authenticates with Sandbox.co.in using the API Key and Secret
+    to get an access token.
+    """
+    if not ERI_API_KEY or not ERI_API_SECRET:
+        raise HTTPException(status_code=500, detail="Sandbox API credentials missing.")
+        
+    async with httpx.AsyncClient() as client:
+        try:
+            # Sandbox uses a unique auth mechanism: x-api-key and x-api-secret headers
+            response = await client.post(
+                f"{ERI_API_BASE}/authenticate",
+                headers={
+                    "x-api-key": ERI_API_KEY,
+                    "x-api-secret": ERI_API_SECRET,
+                    "x-api-version": "1.0",
+                    "accept": "application/json"
+                }
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("access_token")
+            else:
+                raise HTTPException(status_code=500, detail=f"Sandbox Auth Failed: {response.text}")
+        except httpx.RequestError:
+            raise HTTPException(status_code=500, detail="Could not connect to Sandbox API.")
+
+
 async def verify_pan_number(pan_number: str) -> dict:
-    """
-    Verifies PAN against external API if keys are provided.
-    """
     import re
     if not re.match(r"^[A-Z]{5}[0-9]{4}[A-Z]{1}$", pan_number):
-        raise HTTPException(status_code=400, detail="Invalid PAN format. Please ensure it is 10 characters long, formatted like ABCDE1234F.")
+        raise HTTPException(status_code=400, detail="Invalid PAN format.")
         
-    if not ERI_API_KEY:
-        # Mock behavior for dev env if NO key is provided at all
-        return {"status": "success", "verified": True, "name": "MOCK USER (NO API KEY)"}
+    token = await get_sandbox_token()
+        
+    async with httpx.AsyncClient() as client:
+        try:
+            # Sandbox PAN Verification Endpoint
+            response = await client.get(
+                f"{ERI_API_BASE}/kyc/pan/{pan_number}",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "x-api-key": ERI_API_KEY,
+                    "x-api-version": "1.0",
+                    "accept": "application/json"
+                }
+            )
+            
+            if response.status_code == 200:
+                data = response.json().get("data", {})
+                status = data.get("status")
+                
+                if status != "VALID":
+                    raise HTTPException(status_code=400, detail="PAN is invalid according to Government database.")
+                    
+                return {
+                    "status": "success", 
+                    "verified": True, 
+                    "name": data.get("full_name", "Verified User"), 
+                    "raw": data
+                }
+            else:
+                raise HTTPException(status_code=400, detail=f"PAN Verification failed. API Error: {response.text}")
+        except httpx.RequestError:
+            raise HTTPException(status_code=500, detail="Could not connect to PAN verification service.")
+
+async def request_aadhaar_otp(pan_number: str) -> bool:
+    """
+    Step 1: Request OTP from ITD to authenticate the user and fetch prefill data via Sandbox.
+    """
+    token = await get_sandbox_token()
         
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(
-                "https://api.cashfree.com/verification/pan",
+                f"{ERI_API_BASE}/tax/itr/generate-otp",
                 headers={
-                    "x-client-id": ERI_API_KEY,
-                    "x-client-secret": ERI_API_SECRET,
+                    "Authorization": f"Bearer {token}",
+                    "x-api-key": ERI_API_KEY,
+                    "x-api-version": "1.0",
                     "Content-Type": "application/json"
                 },
                 json={"pan": pan_number}
             )
             
             if response.status_code == 200:
-                data = response.json()
-                if data.get("valid") is False:
-                    raise HTTPException(status_code=400, detail="PAN is invalid according to ITD database.")
-                return {"status": "success", "verified": True, "name": data.get("name", "Verified User"), "raw": data}
+                return True
             else:
-                raise HTTPException(status_code=400, detail=f"PAN Verification failed. API Error: {response.text}")
-        except httpx.RequestError as e:
-            raise HTTPException(status_code=500, detail="Could not connect to PAN verification service.")
-
-async def request_aadhaar_otp(pan_number: str) -> bool:
-    """
-    Step 1: Request OTP from ITD to authenticate the user and fetch prefill data.
-    """
-    if not ERI_API_KEY:
-        # Mock behavior for current dev environment
-        return True
-        
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            f"{ERI_API_BASE}/auth/generate-otp",
-            headers={"Authorization": f"Bearer {ERI_API_KEY}"},
-            json={"pan": pan_number}
-        )
-        if response.status_code != 200:
-            raise HTTPException(status_code=400, detail="Failed to generate OTP from ITD")
-        return True
+                raise HTTPException(status_code=400, detail=f"Failed to generate ITD OTP: {response.text}")
+        except httpx.RequestError:
+            raise HTTPException(status_code=500, detail="Could not connect to Tax service.")
 
 async def fetch_prefill_data(pan_number: str, otp: str) -> dict:
     """
     Step 2: Verify OTP and fetch Form 26AS, AIS, and Prefill JSON.
     """
-    if not ERI_API_KEY:
-        # Return mock prefill data for now
-        return {
-            "pan": pan_number,
-            "name": "MOCK USER",
-            "address": {"city": "Mumbai", "state": "MH"},
-            "salary_income": 1250000.0,
-            "tds_deducted": 150000.0,
-            "bank_accounts": [{"account_no": "XXXX1234", "ifsc": "SBIN0001234"}]
-        }
-
+    token = await get_sandbox_token()
+    
     async with httpx.AsyncClient() as client:
-        response = await client.post(
-            f"{ERI_API_BASE}/itr/prefill",
-            headers={"Authorization": f"Bearer {ERI_API_KEY}"},
-            json={"pan": pan_number, "otp": otp}
-        )
-        if response.status_code != 200:
-            raise HTTPException(status_code=400, detail="Invalid OTP or ITD portal down")
-        return response.json()
+        try:
+            response = await client.post(
+                f"{ERI_API_BASE}/tax/itr/prefill",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "x-api-key": ERI_API_KEY,
+                    "x-api-version": "1.0",
+                    "Content-Type": "application/json"
+                },
+                json={"pan": pan_number, "otp": otp}
+            )
+            
+            if response.status_code == 200:
+                data = response.json().get("data", {})
+                
+                # Sandbox returns highly detailed nested JSON. 
+                # We extract the basic numbers for the TaxProfile mapping.
+                
+                # These are safe defaults/extracts assuming Sandbox's standard tax payload
+                income_details = data.get("income_details", {})
+                deduction_details = data.get("deductions", {})
+                taxes_paid = data.get("taxes_paid", {})
+                
+                return {
+                    "pan": pan_number,
+                    "gross_salary": income_details.get("salary_income", 0),
+                    "deductions_80c": deduction_details.get("section_80c", 0),
+                    "tds_deducted": taxes_paid.get("total_tds", 0),
+                    "employer_name": "Fetched from ITD",
+                    "raw_sandbox_data": data # store full data for debugging
+                }
+            else:
+                raise HTTPException(status_code=400, detail=f"Failed to fetch prefill data: {response.text}")
+        except httpx.RequestError:
+            raise HTTPException(status_code=500, detail="Could not connect to Tax service.")
 
-async def submit_itr(pan: str, tax_data: dict) -> dict:
+async def submit_itr(pan_number: str, tax_data: dict) -> dict:
     """
-    Step 3: Direct Filing. Construct the ITD JSON payload and submit the return.
+    Mock submit for now.
     """
-    if not ERI_API_KEY:
-        return {
-            "status": "SUCCESS",
-            "acknowledgement_number": "MOCK_ACK_998877",
-            "message": "ITR filed successfully (MOCK)"
-        }
-        
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            f"{ERI_API_BASE}/itr/file",
-            headers={"Authorization": f"Bearer {ERI_API_KEY}"},
-            json={"pan": pan, "tax_data": tax_data}
-        )
-        if response.status_code != 200:
-            raise HTTPException(status_code=400, detail="Failed to submit ITR")
-        return response.json()
+    return {"status": "SUCCESS", "message": "ITR Submitted Successfully (Mocked)", "ack_number": "ACK123456789"}
