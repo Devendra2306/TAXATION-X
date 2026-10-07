@@ -54,17 +54,20 @@ async def fetch_prefill(request: OTPVerify, current_user: User = Depends(get_cur
     return data
 
 @router.post("/submit")
-async def submit_tax_return(request: FilingRequest, current_user: User = Depends(get_current_user)):
+async def submit_tax_return(request: FilingRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """
     Constructs the JSON schema required by the Income Tax Department and submits it via ERI.
     """
-    # In future: 
-    # 1. Fetch user's tax_computation from DB
-    # 2. Format into ITD schema
-    # 3. Submit
+    from app.routers.profile import export_itr_json
+    from app.models.tax_profile import TaxProfile
     
-    mock_tax_data = {"income": 1250000, "deductions": 150000}
-    # Uses current_user context
-    result = await eri_service.submit_itr("ABCDE1234F", mock_tax_data)
+    profile = db.query(TaxProfile).filter(TaxProfile.user_id == current_user.id).first()
+    if not profile or not profile.pan:
+        raise HTTPException(status_code=400, detail="PAN is required to submit a tax return.")
+        
+    # Generate the official ITR schema JSON payload
+    itr_json_payload = export_itr_json(db=db, current_user=current_user)
     
+    # Submit directly to the government via Sandbox ERI
+    result = await eri_service.submit_itr(profile.pan, itr_json_payload)
     return result

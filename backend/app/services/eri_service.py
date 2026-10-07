@@ -146,8 +146,34 @@ async def fetch_prefill_data(pan_number: str, otp: str) -> dict:
         except httpx.RequestError:
             raise HTTPException(status_code=500, detail="Could not connect to Tax service.")
 
-async def submit_itr(pan_number: str, tax_data: dict) -> dict:
+async def submit_itr(pan_number: str, itr_json_payload: dict) -> dict:
     """
-    Mock submit for now.
+    Submits the ITR JSON payload to the Income Tax Department via Sandbox.co.in ERI API.
     """
-    return {"status": "SUCCESS", "message": "ITR Submitted Successfully (Mocked)", "ack_number": "ACK123456789"}
+    token = await get_sandbox_token()
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(
+                f"{ERI_API_BASE}/tax/itr/submit",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "x-api-key": ERI_API_KEY,
+                    "x-api-version": "1.0",
+                    "Content-Type": "application/json"
+                },
+                json={"pan": pan_number, "itr_data": itr_json_payload}
+            )
+            
+            if response.status_code == 200:
+                data = response.json().get("data", {})
+                return {
+                    "status": "SUCCESS", 
+                    "message": "ITR Submitted Successfully", 
+                    "ack_number": data.get("ack_number", "ACK_PENDING"),
+                    "raw": data
+                }
+            else:
+                raise HTTPException(status_code=400, detail=f"Failed to submit ITR to Government: {response.text}")
+        except httpx.RequestError:
+            raise HTTPException(status_code=500, detail="Could not connect to Tax filing service.")
