@@ -53,3 +53,6 @@ app.include_router(upload.router, prefix="/api/upload", tags=["upload"])
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 app.include_router(profile.router, prefix="/api/profile", tags=["profile"])
 app.include_router(itr.router)
+
+from .routers import tax
+app.include_router(tax.router)

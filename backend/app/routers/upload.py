@@ -50,6 +50,20 @@ async def upload_form16(
             pan=parsed_data.get("pan", "")
         )
         db.add(doc)
+        
+        # Also update the user's TaxProfile so they can review it immediately
+        from ..models.tax_profile import TaxProfile
+        profile = db.query(TaxProfile).filter(TaxProfile.user_id == current_user.id).first()
+        if not profile:
+            profile = TaxProfile(user_id=current_user.id)
+            db.add(profile)
+            
+        profile.gross_salary = parsed_data.get("gross_salary", 0)
+        profile.deductions_80c = parsed_data.get("deductions_80c", 0)
+        profile.tds_deducted = parsed_data.get("tds_deducted", 0)
+        profile.employer_name = parsed_data.get("employer_name", "")
+        profile.pan = parsed_data.get("pan", "")
+        
         db.commit()
         db.refresh(doc)
         
