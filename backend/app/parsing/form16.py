@@ -91,5 +91,19 @@ def extract_form16_data(pdf_path: str) -> Dict[str, Any]:
     tds_match = re.search(r'Total tax deducted.*?([\d,]+\.\d{2})', text, re.IGNORECASE)
     if tds_match:
         data["tds_deducted"] = float(tds_match.group(1).replace(',', ''))
+        
+    # Extract PAN using regex
+    pan_matches = re.findall(r'[A-Z]{5}[0-9]{4}[A-Z]', text)
+    if pan_matches:
+        # Form 16 usually contains both Deductor's PAN and Employee's PAN. Employee PAN is often the second one.
+        if len(pan_matches) >= 2:
+            data["pan"] = pan_matches[1]
+        else:
+            data["pan"] = pan_matches[0]
+            
+    # Extract Employer Name (very basic fallback, looks for first few words before Address)
+    employer_match = re.search(r'Name and address of the Employer\s+([A-Za-z\s\.]+)', text, re.IGNORECASE)
+    if employer_match:
+        data["employer_name"] = employer_match.group(1).strip()
 
     return data
