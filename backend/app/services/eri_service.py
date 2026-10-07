@@ -15,14 +15,16 @@ async def verify_pan_number(pan_number: str) -> dict:
     """
     Verifies PAN against external API if keys are provided.
     """
+    import re
+    if not re.match(r"^[A-Z]{5}[0-9]{4}[A-Z]{1}$", pan_number):
+        raise HTTPException(status_code=400, detail="Invalid PAN format. Please ensure it is 10 characters long, formatted like ABCDE1234F.")
+        
     if not ERI_API_KEY:
+        # Mock behavior for dev env if NO key is provided at all
         return {"status": "success", "verified": True, "name": "MOCK USER (NO API KEY)"}
         
-    # We attempt a generic structure that works for major providers (Cashfree/Surepass)
-    # If the provider is specific, we will adjust the URL later.
     async with httpx.AsyncClient() as client:
         try:
-            # Example endpoint structure
             response = await client.post(
                 "https://api.cashfree.com/verification/pan",
                 headers={
@@ -35,12 +37,13 @@ async def verify_pan_number(pan_number: str) -> dict:
             
             if response.status_code == 200:
                 data = response.json()
+                if data.get("valid") is False:
+                    raise HTTPException(status_code=400, detail="PAN is invalid according to ITD database.")
                 return {"status": "success", "verified": True, "name": data.get("name", "Verified User"), "raw": data}
             else:
-                return {"status": "success", "verified": True, "name": "Verified User (Fallback)", "raw": response.json()}
-        except Exception as e:
-            # If the API fails or is the wrong provider, return a graceful fallback for testing
-            return {"status": "success", "verified": True, "name": "Verified Test User", "error": str(e)}
+                raise HTTPException(status_code=400, detail=f"PAN Verification failed. API Error: {response.text}")
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=500, detail="Could not connect to PAN verification service.")
 
 async def request_aadhaar_otp(pan_number: str) -> bool:
     """

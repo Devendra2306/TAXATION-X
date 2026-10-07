@@ -176,20 +176,16 @@ export default function LoginPage() {
                   const user = result.user;
                   
                   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-                  const mockPassword = String(user.uid).substring(0, 30); 
-                  
-                  // In case they are logging in for the very first time with Google, register them just in case.
-                  await fetch(`${API_URL}/api/auth/register`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ full_name: user.displayName || 'Google User', email: user.email, password: mockPassword }),
-                  });
-                  
-                  const loginResponse = await fetch(`${API_URL}/api/auth/login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams({ username: user.email || '', password: mockPassword }),
-                  });
+                    
+                    const loginResponse = await fetch(`${API_URL}/api/auth/google`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ 
+                        email: user.email || '', 
+                        full_name: user.displayName || 'Google User',
+                        uid: user.uid 
+                      }),
+                    });
                   
                   if (loginResponse.ok) {
                     const data = await loginResponse.json();

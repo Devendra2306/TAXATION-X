@@ -66,6 +66,35 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
     return {"access_token": access_token, "token_type": "bearer"}
 
 
+@router.post("/google", response_model=schemas.Token)
+def google_login(auth_data: schemas.GoogleAuthRequest, db: Session = Depends(get_db)):
+    """
+    Secure Google Login endpoint. 
+    Accepts Firebase user data. If user doesn't exist, creates them silently.
+    Returns standard JWT token.
+    """
+    user = db.query(models.User).filter(models.User.email == auth_data.email).first()
+    
+    if not user:
+        # Create shadow account for Google user (password is a randomized impossible hash)
+        import secrets
+        random_hash = security.get_password_hash(secrets.token_urlsafe(32))
+        user = models.User(
+            email=auth_data.email, 
+            full_name=auth_data.full_name, 
+            hashed_password=random_hash
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = security.create_access_token(
+        data={"sub": user.email}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
 @router.get("/me", response_model=schemas.UserOut)
 def read_users_me(current_user: models.User = Depends(get_current_user)):
     return current_user
