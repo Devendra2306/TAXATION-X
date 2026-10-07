@@ -53,7 +53,16 @@ def export_itr_json(db: Session = Depends(get_db), current_user: User = Depends(
     if not profile:
         raise HTTPException(status_code=404, detail="Tax profile not found. Please review data first.")
         
-    # Standard Govt ITR-1 Schema Mock (simplified for MVP)
+    from app.models.tax_computation import TaxComputation
+    computation = db.query(TaxComputation).filter(TaxComputation.user_id == current_user.id).order_by(TaxComputation.id.desc()).first()
+    
+    if not computation:
+        raise HTTPException(status_code=400, detail="Please visit the Compare Regimes page to compute your tax before downloading.")
+        
+    regime = computation.recommended_regime
+    is_new = regime == "new"
+    
+    # Standard Govt ITR-1 Schema (AY 2025-26)
     itr_json = {
         "ITR": {
             "ITR1": {
@@ -61,13 +70,13 @@ def export_itr_json(db: Session = Depends(get_db), current_user: User = Depends(
                     "SWVersionNo": "1.0",
                     "SWCreatedBy": "NexTax",
                     "XMLCreatedBy": "NexTax",
-                    "XMLCreationDate": "2024-05-01",
+                    "XMLCreationDate": "2025-05-01",
                     "IntermediaryCity": "Mumbai"
                 },
                 "Form_ITR1": {
                     "FormName": "ITR-1",
-                    "Description": "For individuals being a resident (other than not ordinarily resident) having total income upto Rs.50 lakh, having Income from Salaries, one house property, other sources (Interest etc.), and agricultural income upto Rs.5 thousand",
-                    "AssessmentYear": "2024",
+                    "Description": "For individuals being a resident having total income upto Rs.50 lakh.",
+                    "AssessmentYear": "2025",
                     "SchemaVer": "1.0"
                 },
                 "PersonalInfo": {
@@ -75,21 +84,24 @@ def export_itr_json(db: Session = Depends(get_db), current_user: User = Depends(
                         "FirstName": current_user.full_name.split()[0] if current_user.full_name else "User",
                         "SurName": current_user.full_name.split()[-1] if current_user.full_name and " " in current_user.full_name else ""
                     },
-                    "PAN": profile.pan or "ABCDE1234F"
+                    "PAN": profile.pan or "ABCDE1234F",
+                    "OptingNewTaxRegime": "Y" if is_new else "N"
                 },
                 "ITR1_IncomeDeductions": {
                     "GrossSalary": profile.gross_salary,
-                    "IncomeFromHouseProperty": -profile.home_loan_interest,
+                    "IncomeFromHouseProperty": -profile.home_loan_interest if not is_new else 0,
                     "IncomeFromOtherSources": profile.other_income,
                     "UsrDeductUndChapVIA": {
-                        "Section80C": min(profile.deductions_80c, 150000),
-                        "TotalChapVIADeductions": min(profile.deductions_80c, 150000)
+                        "Section80C": min(profile.deductions_80c, 150000) if not is_new else 0,
+                        "TotalChapVIADeductions": min(profile.deductions_80c, 150000) if not is_new else 0
                     },
-                    "TotalIncome": max(0, profile.gross_salary - profile.home_loan_interest + profile.other_income - min(profile.deductions_80c, 150000))
+                    "TotalIncome": computation.new_taxable_income if is_new else computation.old_taxable_income
                 },
                 "ITR1_TaxComputation": {
-                    "TotalTaxPayable": 0, # Assuming calculated externally
-                    "TDSClaimed": profile.tds_deducted
+                    "TotalTaxPayable": computation.new_total_tax if is_new else computation.old_total_tax,
+                    "TDSClaimed": profile.tds_deducted,
+                    "RefundDue": max(0, profile.tds_deducted - (computation.new_total_tax if is_new else computation.old_total_tax)),
+                    "TaxPayable": max(0, (computation.new_total_tax if is_new else computation.old_total_tax) - profile.tds_deducted)
                 }
             }
         }
