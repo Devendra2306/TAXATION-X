@@ -1,17 +1,29 @@
-from sqlalchemy import Column, String, DateTime, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID, JSONB
-import uuid
-from datetime import datetime, timezone
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
+from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
+import json
 from ..database import Base
 
 class Filing(Base):
     __tablename__ = "filings"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    tax_computation_id = Column(UUID(as_uuid=True), ForeignKey("tax_computations.id"), nullable=False)
-    assessment_year = Column(String, nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    tax_computation_id = Column(Integer, ForeignKey("tax_computations.id"), nullable=False)
+    assessment_year = Column(String, nullable=False, default="2025-26")
     status = Column(String, default="generated") # generated, downloaded, filed
-    itr_json_data = Column(JSONB, nullable=False) # The actual JSON payload for ITR-1
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    # Store JSON payload as text
+    itr_json_data = Column(Text, nullable=False) 
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    user = relationship("User", backref="filings")
+    tax_computation = relationship("TaxComputation", backref="filing")
+
+    def set_itr_data(self, data: dict):
+        self.itr_json_data = json.dumps(data)
+
+    def get_itr_data(self) -> dict:
+        return json.loads(self.itr_json_data) if self.itr_json_data else {}
