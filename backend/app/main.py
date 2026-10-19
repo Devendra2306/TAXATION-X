@@ -1,19 +1,35 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-import sentry_sdk
+from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from starlette.middleware.base import BaseHTTPMiddleware
 import os
+import logging
 
-# Initialize Sentry for error tracking
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+# Initialize Sentry for error tracking (if configured)
 if os.getenv("SENTRY_DSN"):
-    sentry_sdk.init(
-        dsn=os.getenv("SENTRY_DSN"),
-        traces_sample_rate=1.0,
-        profiles_sample_rate=1.0,
-    )
+    try:
+        import sentry_sdk
+        sentry_sdk.init(
+            dsn=os.getenv("SENTRY_DSN"),
+            traces_sample_rate=1.0,
+            profiles_sample_rate=1.0,
+        )
+    except ImportError:
+        logger.warning("sentry-sdk is not installed, skipping Sentry initialization.")
 
 from .database import engine
 from . import models
 from .routers import auth, upload, chat, profile, itr
+from .main_limiter import limiter
 
 # Create DB tables
 models.Base.metadata.create_all(bind=engine)
@@ -24,17 +40,33 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Configure CORS
+# --- Rate Limiting ---
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# --- Security Headers Middleware ---
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        return response
+
+app.add_middleware(SecurityHeadersMiddleware)
+
+# --- CORS (tightened — only allow known domains, no wildcard regex) ---
 origins = [
     "http://localhost:3000",
     "https://taxation-x.vercel.app",
-    "https://nextaxx3.vercel.app"
+    "https://nextaxx3.vercel.app",
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -56,3 +88,4 @@ app.include_router(itr.router)
 
 from .routers import tax
 app.include_router(tax.router)
+

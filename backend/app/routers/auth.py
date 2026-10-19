@@ -1,17 +1,23 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
 import jwt
+import logging
 
 from .. import models, schemas
 from ..database import get_db
 from ..core import security
 from ..config import settings
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
+
+# Rate limiter (imported from main.py where it's initialized)
+from ..main_limiter import limiter
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
@@ -35,7 +41,8 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 
 
 @router.post("/register", response_model=schemas.UserOut)
-def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+@limiter.limit("3/minute")
+def register_user(request: Request, user: schemas.UserCreate, db: Session = Depends(get_db)):
     db_user = db.query(models.User).filter(models.User.email == user.email).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -50,7 +57,8 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=schemas.Token)
-def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.email == form_data.username).first()
     if not user or not security.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
@@ -67,21 +75,50 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
 
 
 @router.post("/google", response_model=schemas.Token)
-def google_login(auth_data: schemas.GoogleAuthRequest, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def google_login(request: Request, auth_data: schemas.GoogleAuthRequest, db: Session = Depends(get_db)):
     """
-    Secure Google Login endpoint. 
-    Accepts Firebase user data. If user doesn't exist, creates them silently.
-    Returns standard JWT token.
+    Secure Google Login endpoint.
+    Verifies the Firebase ID token server-side before trusting any user data.
+    If user doesn't exist, creates them silently. Returns standard JWT token.
     """
-    user = db.query(models.User).filter(models.User.email == auth_data.email).first()
+    from google.oauth2 import id_token as google_id_token
+    from google.auth.transport import requests as google_requests
+    
+    try:
+        # Verify the Firebase ID token with Google's servers
+        audience = settings.FIREBASE_PROJECT_ID if settings.FIREBASE_PROJECT_ID else None
+        decoded_token = google_id_token.verify_firebase_token(
+            auth_data.id_token,
+            google_requests.Request(),
+            audience=audience,
+        )
+    except Exception as e:
+        logger.warning(f"Google auth failed — invalid Firebase ID token: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired Google authentication token. Please try again.",
+        )
+    
+    # Extract verified claims — these are trustworthy now
+    email = decoded_token.get("email")
+    full_name = decoded_token.get("name", "Google User")
+    
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google account does not have an email address.",
+        )
+    
+    user = db.query(models.User).filter(models.User.email == email).first()
     
     if not user:
         # Create shadow account for Google user (password is a randomized impossible hash)
         import secrets
         random_hash = security.get_password_hash(secrets.token_urlsafe(32))
         user = models.User(
-            email=auth_data.email, 
-            full_name=auth_data.full_name, 
+            email=email, 
+            full_name=full_name, 
             hashed_password=random_hash
         )
         db.add(user)
@@ -98,3 +135,4 @@ def google_login(auth_data: schemas.GoogleAuthRequest, db: Session = Depends(get
 @router.get("/me", response_model=schemas.UserOut)
 def read_users_me(current_user: models.User = Depends(get_current_user)):
     return current_user
+

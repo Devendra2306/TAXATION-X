@@ -29,6 +29,4 @@ class TokenData(BaseModel):
     email: Optional[str] = None
 
 class GoogleAuthRequest(BaseModel):
-    email: EmailStr
-    full_name: str
-    uid: str
+    id_token: str

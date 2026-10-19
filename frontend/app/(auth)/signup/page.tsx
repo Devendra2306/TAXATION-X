@@ -162,18 +162,17 @@ export default function SignupPage() {
                   
                   // Firebase provides the user object
                   const user = result.user;
+                  const idToken = await user.getIdToken();
                   
                   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
                     
-                    const loginResponse = await fetch(`${API_URL}/api/auth/google`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ 
-                        email: user.email || '', 
-                        full_name: user.displayName || 'Google User',
-                        uid: user.uid 
-                      }),
-                    });
+                  const loginResponse = await fetch(`${API_URL}/api/auth/google`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                      id_token: idToken 
+                    }),
+                  });
                   
                   if (loginResponse.ok) {
                     const data = await loginResponse.json();

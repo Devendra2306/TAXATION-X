@@ -5,6 +5,7 @@ certifi
 charset-normalizer
 click
 fastapi
+google-auth
 google-generativeai
 h11
 httpcore
@@ -24,6 +25,7 @@ python-dotenv
 python-multipart
 requests
 six
+slowapi
 SQLAlchemy
 starlette
 typing-inspection
@@ -32,3 +34,4 @@ uvicorn
 sentry-sdk
 email-validator
 psycopg[binary]
+

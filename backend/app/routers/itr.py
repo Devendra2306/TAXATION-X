@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from typing import Dict, Any
 
 from app.schemas.itr import OTPRequest, OTPVerify, FilingRequest, PrefillDataResponse
 from app.services import eri_service
 from app.routers.auth import get_current_user
 from app.models.user import User
+from app.main_limiter import limiter
 
 router = APIRouter(prefix="/api/itr", tags=["ITR E-Filing"])
 
@@ -17,11 +18,13 @@ async def verify_pan(request: OTPRequest, current_user: User = Depends(get_curre
     return result
 
 @router.post("/generate-otp")
-async def generate_otp(request: OTPRequest, current_user: User = Depends(get_current_user)):
+@limiter.limit("3/minute")
+async def generate_otp(request: Request, otp_request: OTPRequest, current_user: User = Depends(get_current_user)):
     """
     Trigger Aadhaar/ITD OTP to fetch prefill data or e-verify.
+    Rate limited to 3 attempts per minute to prevent OTP flooding.
     """
-    success = await eri_service.request_aadhaar_otp(request.pan_number)
+    success = await eri_service.request_aadhaar_otp(otp_request.pan_number)
     if success:
         return {"message": "OTP sent successfully to registered mobile number"}
     raise HTTPException(status_code=500, detail="Failed to send OTP")
