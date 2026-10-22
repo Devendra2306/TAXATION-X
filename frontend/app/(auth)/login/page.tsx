@@ -45,7 +45,9 @@ export default function LoginPage() {
       }
       const data = await response.json();
       localStorage.setItem('access_token', data.access_token);
-      router.push('/select-plan');
+      const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+      const redirect = params?.get('redirect');
+      router.push(redirect && redirect.startsWith('/') ? redirect : '/dashboard');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
@@ -189,7 +191,9 @@ export default function LoginPage() {
                   if (loginResponse.ok) {
                     const data = await loginResponse.json();
                     localStorage.setItem('access_token', data.access_token);
-                    router.push('/select-plan');
+                    const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+      const redirect = params?.get('redirect');
+      router.push(redirect && redirect.startsWith('/') ? redirect : '/dashboard');
                   } else {
                     throw new Error('Failed to login with Google on backend');
                   }

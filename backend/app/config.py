@@ -38,6 +38,6 @@ class Settings(BaseSettings):
         return v
     
     class Config:
-        env_file = ".env"
+        env_file = (os.path.join(BASE_DIR, ".env"), ".env")
 
 settings = Settings()

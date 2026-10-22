@@ -10,7 +10,6 @@ import { Logo } from '@/components/Logo';
 export default function SignupPage() {
   const router = useRouter();
 
-
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
@@ -28,6 +27,17 @@ export default function SignupPage() {
     return () => clearTimeout(timeoutId);
   }, [loading]);
   const [error, setError] = useState('');
+
+  const getDestination = () => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const redirect = params.get('redirect');
+      if (redirect && redirect.startsWith('/')) {
+        return redirect;
+      }
+    }
+    return '/dashboard';
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -67,9 +77,9 @@ export default function SignupPage() {
       if (loginResponse.ok) {
         const loginData = await loginResponse.json();
         localStorage.setItem('access_token', loginData.access_token);
-        router.push('/select-plan');
+        router.push(getDestination());
       } else {
-        router.push('/select-plan');
+        router.push('/login?registered=true');
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Registration failed');
@@ -177,7 +187,7 @@ export default function SignupPage() {
                   if (loginResponse.ok) {
                     const data = await loginResponse.json();
                     localStorage.setItem('access_token', data.access_token);
-                    router.push('/select-plan');
+                    router.push(getDestination());
                   } else {
                     throw new Error('Failed to login with Google on backend');
                   }

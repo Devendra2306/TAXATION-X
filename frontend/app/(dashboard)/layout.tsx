@@ -18,10 +18,10 @@ import {
   X,
   Search,
   LogOut,
+  Sparkles,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Logo } from '@/components/Logo';
-import { FilingProgress } from '@/components/ui/FilingProgress';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -32,7 +32,7 @@ const navItems = [
   { name: 'Tax Optimizer', href: '/optimizer', icon: Lightbulb },
   { name: 'Refund Status', href: '/refund', icon: Activity },
   { name: 'Download ITR', href: '/export', icon: Download },
-  { name: 'AI Chat', href: '/chat', icon: MessageSquare },
+  { name: 'AI Tax Studio', href: '/chat', icon: MessageSquare, badge: 'AI' },
 ];
 
 const pageTitles: Record<string, string> = {
@@ -43,8 +43,10 @@ const pageTitles: Record<string, string> = {
   optimizer: 'Tax Optimizer',
   refund: 'Refund Status',
   export: 'Download ITR',
-  chat: 'AI Tax Expert',
+  chat: 'AI Tax Expert Studio',
   ais: 'AIS Data',
+  'select-plan': 'Select Plan',
+  'verify-pan': 'Verify PAN',
 };
 
 export default function DashboardLayout({
@@ -62,9 +64,10 @@ export default function DashboardLayout({
 
   useEffect(() => {
     const fetchProfile = async () => {
-      const token = localStorage.getItem('access_token');
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
       if (!token) {
-        router.push('/login');
+        const dest = encodeURIComponent(pathname || '/dashboard');
+        router.push(`/login?redirect=${dest}`);
         return;
       }
 
@@ -83,15 +86,18 @@ export default function DashboardLayout({
         } else {
           // Token invalid or expired
           localStorage.removeItem('access_token');
-          router.push('/login');
+          const dest = encodeURIComponent(pathname || '/dashboard');
+          router.push(`/login?redirect=${dest}`);
         }
       } catch (err) {
+        console.error('Profile fetch failed:', err);
         localStorage.removeItem('access_token');
-        router.push('/login');
+        const dest = encodeURIComponent(pathname || '/dashboard');
+        router.push(`/login?redirect=${dest}`);
       }
     };
     fetchProfile();
-  }, []);
+  }, [pathname, router]);
 
   const handleLogout = () => {
     localStorage.removeItem('access_token');
@@ -140,9 +146,14 @@ export default function DashboardLayout({
               <Link key={item.name} href={item.href} onClick={() => setSidebarOpen(false)}>
                 <div className={isActive ? 'sidebar-link-active' : 'sidebar-link-inactive'}>
                   <Icon className={cn('h-[18px] w-[18px]', isActive ? 'text-primary' : '')} />
-                  {item.name}
+                  <span className="flex-1 truncate">{item.name}</span>
+                  {item.badge && (
+                    <span className="text-[10px] font-bold bg-indigo-50 border border-indigo-200 text-indigo-700 px-1.5 py-0.2 rounded-md">
+                      {item.badge}
+                    </span>
+                  )}
                   {isActive && (
-                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary ml-1" />
                   )}
                 </div>
               </Link>
@@ -157,7 +168,7 @@ export default function DashboardLayout({
             </div>
             <div className="flex flex-col flex-1 min-w-0">
               <span className="text-sm font-semibold text-foreground truncate">{userName}</span>
-              <span className="text-xs text-muted-foreground">Pro Plan</span>
+              <span className="text-xs text-muted-foreground">Pro Plan • AY 2025-26</span>
             </div>
             <LogOut className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
@@ -192,15 +203,13 @@ export default function DashboardLayout({
               />
             </div>
 
-            <button className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors bg-muted/60 rounded-xl px-3 py-2 border border-border/50">
+            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground bg-muted/60 rounded-xl px-3 py-2 border border-border/50">
               <span className="hidden sm:inline">AY 2025-26</span>
-              <ChevronDown className="h-4 w-4" />
-            </button>
+            </div>
 
-            <button className="relative p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
-              <Bell className="h-5 w-5" />
-              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary ring-2 ring-white" />
-            </button>
+            <Link href="/chat" className="p-2 rounded-xl hover:bg-indigo-50 text-indigo-600 transition-colors" title="Ask AI Tax Expert">
+              <Sparkles className="h-5 w-5 text-amber-500" />
+            </Link>
           </div>
         </header>
 

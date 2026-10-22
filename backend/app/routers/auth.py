@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="api/auth/login", auto_error=False)
 
 # Rate limiter (imported from main.py where it's initialized)
 from ..main_limiter import limiter
@@ -38,6 +39,22 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None:
         raise credentials_exception
     return user
+
+
+def get_optional_current_user(token: str = Depends(oauth2_scheme_optional), db: Session = Depends(get_db)):
+    """
+    Returns the authenticated user if a valid Bearer token is provided, or None if guest/unauthenticated.
+    """
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            return None
+        return db.query(models.User).filter(models.User.email == email).first()
+    except Exception:
+        return None
 
 
 @router.post("/register", response_model=schemas.UserOut)
