@@ -11,6 +11,7 @@ export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<'idle' | 'uploading' | 'parsing' | 'success' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState<string>('');
   
   // OTP Fetch State
   const [otpMode, setOtpMode] = useState<'idle' | 'requesting' | 'enter_otp' | 'verifying' | 'success'>('idle');
@@ -76,6 +77,7 @@ export default function UploadPage() {
   // --- 2. FILE UPLOAD LOGIC ---
   const uploadAndParseFile = async (uploadedFile: File) => {
     setStatus('uploading');
+    setErrorMessage('');
     setProgress(50);
     try {
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
@@ -89,7 +91,10 @@ export default function UploadPage() {
         body: formData,
       });
 
-      if (!response.ok) throw new Error('Upload failed');
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => null);
+        throw new Error(errJson?.detail || 'Upload failed. Please check your PDF and try again.');
+      }
 
       setStatus('parsing');
       setProgress(80);
@@ -100,8 +105,9 @@ export default function UploadPage() {
       setStatus('success');
       
       setTimeout(() => { router.push('/review'); }, 1500);
-    } catch (error) {
+    } catch (error: any) {
       setStatus('error');
+      setErrorMessage(error?.message || 'Upload failed. Please check your PDF and try again.');
     }
   };
 
@@ -187,7 +193,12 @@ export default function UploadPage() {
                 Browse Files
                 <input type="file" className="hidden" accept=".pdf" onChange={handleFileChange} />
               </label>
-              {status === 'error' && <p className="text-rose-500 text-sm mt-4 font-medium">Upload failed. Please try again.</p>}
+              {status === 'error' && (
+                <div className="mt-4 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-sm max-w-md mx-auto text-left">
+                  <p className="font-semibold text-rose-800">Extraction Unsuccessful</p>
+                  <p className="mt-1">{errorMessage || 'Upload failed. Please check your PDF and try again.'}</p>
+                </div>
+              )}
             </>
           ) : (
             <div className="py-8 flex flex-col items-center justify-center space-y-6">

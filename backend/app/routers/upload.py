@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 import os
 import tempfile
 import uuid
@@ -21,6 +22,7 @@ async def upload_form16(
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
     
     # Save uploaded file to a temporary location
+    tmp_path = None
     try:
         suffix = os.path.splitext(file.filename)[1]
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -28,14 +30,23 @@ async def upload_form16(
             tmp.write(contents)
             tmp_path = tmp.name
         
-        # Parse PDF
-        parsed_data = extract_form16_data(tmp_path)
-        
-        # Clean up temp file
-        os.remove(tmp_path)
+        # Parse PDF asynchronously in threadpool to prevent blocking the event loop
+        parsed_data = await run_in_threadpool(extract_form16_data, tmp_path)
         
         if not parsed_data:
-            raise HTTPException(status_code=500, detail="Failed to parse PDF data")
+            raise HTTPException(status_code=422, detail="Failed to parse PDF data. The file appears to be empty or corrupted.")
+            
+        if parsed_data.get("error") == "password_protected":
+            raise HTTPException(
+                status_code=400,
+                detail=parsed_data.get("message", "This Form 16 PDF is password-protected. Please upload an unencrypted PDF or remove the password first.")
+            )
+            
+        if parsed_data.get("error"):
+            raise HTTPException(
+                status_code=422,
+                detail=parsed_data.get("message", "Failed to parse Form 16 document.")
+            )
             
         # Save to database
         doc = models.Document(
@@ -72,5 +83,13 @@ async def upload_form16(
             "parsed_data": parsed_data
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
