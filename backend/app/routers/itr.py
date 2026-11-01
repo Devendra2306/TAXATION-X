@@ -12,9 +12,14 @@ router = APIRouter(prefix="/api/itr", tags=["ITR E-Filing"])
 @router.post("/verify-pan")
 async def verify_pan(request: OTPRequest, current_user: User = Depends(get_current_user)):
     """
-    Verify PAN using external API
+    Verify PAN using Sandbox KYC API.
+    Requires pan_number, and optionally name + dob for full verification.
     """
-    result = await eri_service.verify_pan_number(request.pan_number)
+    result = await eri_service.verify_pan_number(
+        pan_number=request.pan_number,
+        name=request.name or "Unknown",
+        dob=request.dob or "01/01/1990"
+    )
     return result
 
 @router.post("/generate-otp")

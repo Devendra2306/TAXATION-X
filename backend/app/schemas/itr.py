@@ -3,6 +3,9 @@ from typing import Optional, List, Dict, Any
 
 class OTPRequest(BaseModel):
     pan_number: str = Field(..., description="PAN number of the taxpayer")
+    name: Optional[str] = Field(None, description="Name as per PAN card (required for PAN verification)")
+    dob: Optional[str] = Field(None, description="Date of birth in DD/MM/YYYY format")
+    otp: Optional[str] = Field(None, description="OTP if applicable")
     
 class OTPVerify(BaseModel):
     pan_number: str
@@ -22,8 +25,8 @@ class ITRStatusResponse(BaseModel):
 
 class PrefillDataResponse(BaseModel):
     pan: str
-    name: str
-    address: Dict[str, Any]
-    salary_income: float
-    tds_deducted: float
-    bank_accounts: List[Dict[str, Any]]
+    gross_salary: float = 0
+    deductions_80c: float = 0
+    tds_deducted: float = 0
+    employer_name: str = ""
+    raw_sandbox_data: Optional[Dict[str, Any]] = None
