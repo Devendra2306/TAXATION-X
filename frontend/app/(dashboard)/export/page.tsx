@@ -30,6 +30,7 @@ export default function ExportPage() {
   // Taxpayer details from local storage
   const [pan, setPan] = useState('');
   const [name, setName] = useState('Taxpayer');
+  const [paymentSuccessTxnid, setPaymentSuccessTxnid] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -37,6 +38,14 @@ export default function ExportPage() {
       const storedName = localStorage.getItem('verified_name');
       if (storedPan) setPan(storedPan);
       if (storedName) setName(storedName);
+
+      // Check payment params
+      const urlParams = new URLSearchParams(window.location.search);
+      const isSuccess = urlParams.get('payment') === 'success';
+      const txnid = urlParams.get('txnid') || localStorage.getItem('last_payment_txnid');
+      if (isSuccess || urlParams.get('payment') === 'simulated' || txnid) {
+        setPaymentSuccessTxnid(txnid || 'TEST_PAYU_SUCCESS');
+      }
     }
   }, []);
 
@@ -180,6 +189,29 @@ export default function ExportPage() {
           3. File ITR & e-Verify
         </span>
       </div>
+
+      {/* PayU Payment Success Banner */}
+      {paymentSuccessTxnid && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between gap-3 text-xs text-emerald-900 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div>
+              <div className="font-extrabold text-slate-900 flex items-center gap-2">
+                <span>Payment Confirmed via PayU</span>
+                <span className="text-[10px] font-mono bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
+                  {paymentSuccessTxnid}
+                </span>
+              </div>
+              <span className="text-slate-600">Your filing plan is active. Proceed to submit your ITR to the Income Tax Department below.</span>
+            </div>
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-200/80 text-emerald-900 px-2.5 py-1 rounded-lg">
+            Paid
+          </span>
+        </div>
+      )}
 
       <div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">

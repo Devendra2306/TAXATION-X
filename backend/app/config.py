@@ -23,6 +23,17 @@ class Settings(BaseSettings):
     EXTERNAL_API_KEY: str = ""
     EXTERNAL_API_SECRET: str = ""
     
+    # PayU Payment Gateway Test Credentials
+    PAYU_KEY: str = "BH6b9r"
+    PAYU_SALT: str = "SdXEkaKbj0fJqijOYSF6mmfCQtqfrVmf"
+    PAYU_CLIENT_ID: str = "85d529228846f396e194c235d7301fdb46f8e31684271765d590a09d98d1d926"
+    PAYU_CLIENT_SECRET: str = "c89d1685babf150c237b071cdd58622d14ad71161878077158049faae7a35c0c"
+    PAYU_ENV: str = "test"  # test or prod
+    PAYU_TEST_URL: str = "https://test.payu.in/_payment"
+    PAYU_PROD_URL: str = "https://secure.payu.in/_payment"
+    BACKEND_URL: str = os.getenv("BACKEND_URL", "http://localhost:8000")
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    
     # Firebase project ID for verifying Google login ID tokens
     FIREBASE_PROJECT_ID: str = ""
     

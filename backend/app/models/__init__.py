@@ -4,3 +4,4 @@ from .document import Document
 from .tax_profile import TaxProfile
 from .tax_computation import TaxComputation
 from .filing import Filing
+from .payment import Payment

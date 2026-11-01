@@ -28,11 +28,14 @@ if os.getenv("SENTRY_DSN"):
 
 from .database import engine
 from . import models
-from .routers import auth, upload, chat, profile, itr
+from .routers import auth, upload, chat, profile, itr, payment
 from .main_limiter import limiter
 
 # Create DB tables
-models.Base.metadata.create_all(bind=engine)
+try:
+    models.Base.metadata.create_all(bind=engine)
+except Exception as e:
+    logger.warning(f"Could not initialize DB tables on startup: {e}")
 
 app = FastAPI(
     title="OFS Taxation Platform API",
@@ -85,6 +88,7 @@ app.include_router(upload.router, prefix="/api/upload", tags=["upload"])
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 app.include_router(profile.router, prefix="/api/profile", tags=["profile"])
 app.include_router(itr.router)
+app.include_router(payment.router)
 
 from .routers import tax
 app.include_router(tax.router)
