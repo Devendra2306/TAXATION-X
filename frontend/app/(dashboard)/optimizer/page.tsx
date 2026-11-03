@@ -129,6 +129,14 @@ export default function OptimizerPage() {
           </motion.div>
         ))}
       </div>
+        {/* Bottom Action Footer */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-slate-200">
+          <Link href="/review" className="text-xs text-slate-500 hover:text-slate-700 font-medium">&larr; Back to Tax Summary</Link>
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <Link href="/chat" className="px-5 py-3 rounded-xl border border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-bold text-xs transition-colors flex items-center gap-1.5"><span>Ask AI How to Claim These</span></Link>
+            <Link href="/review" className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-md shadow-indigo-600/20 transition-all flex items-center gap-2"><span>Apply &amp; Return to Review</span><ArrowRight className="w-4 h-4" /></Link>
+          </div>
+        </div>
     </div>
   );
 }

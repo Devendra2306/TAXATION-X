@@ -133,25 +133,25 @@ export default function DashboardLayout({
         )}
       </AnimatePresence>
 
-      {/* Sidebar */}
+      {/* Off-canvas Navigation Drawer for Mobile & Secondary Tools */}
       <aside
         className={cn(
-          'w-72 fixed inset-y-0 left-0 bg-white border-r border-border flex flex-col z-50 transition-transform duration-300 lg:translate-x-0',
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          'w-72 fixed inset-y-0 left-0 bg-white border-r border-border flex flex-col z-50 transition-transform duration-300',
+          sidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
         )}
       >
         <div className="h-16 flex items-center justify-between px-5 border-b border-border">
           <Logo size="sm" href="/dashboard" />
           <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-1.5 rounded-lg hover:bg-muted text-muted-foreground"
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
-          <p className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Menu</p>
+          <p className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Filing Tools</p>
           {navItems.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
             const Icon = item.icon;
@@ -189,16 +189,22 @@ export default function DashboardLayout({
         </div>
       </aside>
 
-      {/* Main Content */}
-      <div className="flex-1 lg:ml-72 flex flex-col min-h-screen">
-        <header className="h-16 sticky top-0 z-30 bg-white/95 backdrop-blur-xl border-b border-border flex items-center justify-between px-4 md:px-8">
-          <div className="flex items-center gap-4">
+      {/* Main Full-Width Content Container (ClearTax Structure) */}
+      <div className="flex-1 flex flex-col min-h-screen w-full">
+        {/* Top Header Navbar - Full Width ClearTax Style */}
+        <header className="h-16 sticky top-0 z-30 bg-white/95 backdrop-blur-xl border-b border-slate-100 flex items-center justify-between px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-4 sm:gap-6">
+            {/* Mobile / Quick Drawer Menu Button */}
             <button
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-xl hover:bg-muted text-muted-foreground"
+              className="p-2 rounded-xl hover:bg-slate-100 text-slate-600 transition-colors"
+              title="Open Navigation Menu"
             >
               <Menu className="h-5 w-5" />
             </button>
+
+            {/* Brand Logo */}
+            <Logo size="sm" href="/dashboard" />
 
             {/* Filing For Switcher Dropdown (ClearTax style) */}
             <div className="relative">
@@ -210,10 +216,10 @@ export default function DashboardLayout({
                 className="flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors text-left group"
               >
                 <span className="text-xs font-medium text-slate-500">Filing for:</span>
-                <span className="text-sm font-bold text-slate-800 max-w-[140px] sm:max-w-[200px] truncate">
+                <span className="text-xs sm:text-sm font-bold text-slate-800 max-w-[130px] sm:max-w-[200px] truncate">
                   {userName !== 'Loading...' ? userName : 'New User'}
                 </span>
-                <ChevronDown className={cn("h-4 w-4 text-slate-400 group-hover:text-slate-600 transition-transform", filingDropdownOpen ? "rotate-180" : "")} />
+                <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 group-hover:text-slate-600 transition-transform", filingDropdownOpen ? "rotate-180" : "")} />
               </button>
 
               <AnimatePresence>
@@ -252,7 +258,12 @@ export default function DashboardLayout({
                       <div className="mt-2 space-y-1">
                         <Link
                           href="/verify-pan"
-                          onClick={() => setFilingDropdownOpen(false)}
+                          onClick={() => {
+                            localStorage.removeItem('verified_pan');
+                            localStorage.removeItem('verified_name');
+                            localStorage.removeItem('parsedTaxData');
+                            setFilingDropdownOpen(false);
+                          }}
                           className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-slate-50 text-xs font-semibold text-indigo-600 transition-colors"
                         >
                           <span className="text-base leading-none">+</span> File for another person / family member

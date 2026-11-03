@@ -228,6 +228,15 @@ export default function ComparePage() {
             </div>
           </div>
         </div>
+
+        {/* Action Buttons to Continue Filing */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-200">
+          <Link href="/review" className="text-xs text-slate-500 hover:text-slate-700 font-medium">&larr; Back to Tax Summary</Link>
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <Link href="/chat" className="px-5 py-3 rounded-xl border border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-bold text-xs transition-colors">Ask AI Tax Expert</Link>
+            <Link href="/review" className="px-7 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-2"><span>Apply &amp; Continue Filing</span><ArrowRight className="w-4 h-4" /></Link>
+          </div>
+        </div>
       </div>
     </div>
   );

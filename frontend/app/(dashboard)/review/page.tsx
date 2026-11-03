@@ -363,7 +363,7 @@ export default function TaxSummaryReviewPage() {
             </div>
 
             <Link
-              href="/export"
+              href="/select-plan"
               className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-md shadow-indigo-600/20 transition-all text-center shrink-0"
             >
               Complete Filing Now
@@ -492,7 +492,7 @@ export default function TaxSummaryReviewPage() {
 
           {/* Big CTA on right column */}
           <Link
-            href="/export"
+            href="/select-plan"
             className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-sm shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 text-center"
           >
             <span>Complete Filing Now</span>

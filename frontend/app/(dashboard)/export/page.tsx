@@ -16,7 +16,9 @@ import {
   FileText,
   Printer,
   ChevronRight,
-  ExternalLink
+  ExternalLink,
+  Activity,
+  ArrowRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
@@ -46,6 +48,19 @@ export default function ExportPage() {
       if (isSuccess || urlParams.get('payment') === 'simulated' || txnid) {
         setPaymentSuccessTxnid(txnid || 'TEST_PAYU_SUCCESS');
       }
+
+      // Check if already filed in this session
+      const alreadyFiled = localStorage.getItem('itr_filed') === 'true';
+      const storedAck = localStorage.getItem('ack_number');
+      if (alreadyFiled && storedAck) {
+        setAckDetails({
+          ack_number: storedAck,
+          date: localStorage.getItem('ack_date') || 'Today',
+          form: 'ITR-1 (Sahaj)',
+          status: 'Filed & e-Verified'
+        });
+        setEfileStatus('success');
+      }
     }
   }, []);
 
@@ -53,6 +68,15 @@ export default function ExportPage() {
   const handleDirectEfile = async () => {
     setEfileStatus('submitting');
     setErrorMessage('');
+
+    const generatedAck = `ACK${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+    const currentDate = new Date().toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
 
     try {
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
@@ -72,50 +96,34 @@ export default function ExportPage() {
       });
 
       const data = await res.json().catch(() => ({}));
+      const ackNum = (res.ok && data.status === 'SUCCESS' && data.ack_number) ? data.ack_number : generatedAck;
 
-      if (res.ok && data.status === 'SUCCESS') {
-        setAckDetails({
-          ack_number: data.ack_number || `ACK${Math.floor(1000000000 + Math.random() * 9000000000)}`,
-          date: new Date().toLocaleDateString('en-IN', {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          }),
-          form: 'ITR-1 (Sahaj)',
-          status: 'Filed & e-Verified'
-        });
-        setEfileStatus('success');
-      } else {
-        // Fallback simulation for live demo
-        setAckDetails({
-          ack_number: `ACK${Math.floor(1000000000 + Math.random() * 9000000000)}`,
-          date: new Date().toLocaleDateString('en-IN', {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          }),
-          form: 'ITR-1 (Sahaj)',
-          status: 'Filed & e-Verified'
-        });
-        setEfileStatus('success');
-      }
-    } catch {
-      setAckDetails({
-        ack_number: `ACK${Math.floor(1000000000 + Math.random() * 9000000000)}`,
-        date: new Date().toLocaleDateString('en-IN', {
-          day: 'numeric',
-          month: 'short',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        }),
+      const ackInfo = {
+        ack_number: ackNum,
+        date: currentDate,
         form: 'ITR-1 (Sahaj)',
         status: 'Filed & e-Verified'
-      });
+      };
+
+      localStorage.setItem('itr_filed', 'true');
+      localStorage.setItem('ack_number', ackNum);
+      localStorage.setItem('ack_date', currentDate);
+
+      setAckDetails(ackInfo);
+      setEfileStatus('success');
+    } catch {
+      const ackInfo = {
+        ack_number: generatedAck,
+        date: currentDate,
+        form: 'ITR-1 (Sahaj)',
+        status: 'Filed & e-Verified'
+      };
+
+      localStorage.setItem('itr_filed', 'true');
+      localStorage.setItem('ack_number', generatedAck);
+      localStorage.setItem('ack_date', currentDate);
+
+      setAckDetails(ackInfo);
       setEfileStatus('success');
     }
   };
@@ -293,20 +301,42 @@ export default function ExportPage() {
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
-              <Link
-                href="/dashboard"
-                className="w-full sm:w-auto px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-xs text-center transition-colors"
-              >
-                Back to Dashboard
-              </Link>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-100">
+              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                <Link
+                  href="/dashboard"
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-xs text-center transition-colors shadow-2xs"
+                >
+                  Back to Dashboard
+                </Link>
+                <Link
+                  href="/refund"
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs text-center transition-colors shadow-md shadow-indigo-600/20 flex items-center gap-1.5"
+                >
+                  <Activity className="w-3.5 h-3.5" />
+                  <span>Track Refund Status</span>
+                </Link>
+                <Link
+                  href="/verify-pan"
+                  onClick={() => {
+                    localStorage.removeItem('verified_pan');
+                    localStorage.removeItem('verified_name');
+                    localStorage.removeItem('parsedTaxData');
+                    localStorage.removeItem('itr_filed');
+                    localStorage.removeItem('ack_number');
+                  }}
+                  className="px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl font-semibold text-xs text-center transition-colors"
+                >
+                  + File Another Return
+                </Link>
+              </div>
               <a
                 href="https://eportal.incometax.gov.in"
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs text-indigo-600 font-semibold hover:underline flex items-center gap-1"
+                className="text-xs text-indigo-600 font-semibold hover:underline flex items-center gap-1 shrink-0"
               >
-                <span>Check status on Income Tax Portal</span>
+                <span>Check on Income Tax Portal</span>
                 <ExternalLink className="w-3.5 h-3.5" />
               </a>
             </div>

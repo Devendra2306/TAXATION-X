@@ -22,7 +22,8 @@ import {
   Layers,
   TrendingUp,
   Percent,
-  Check
+  Check,
+  Activity
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -34,6 +35,9 @@ export default function DashboardPage() {
   const [userEmail, setUserEmail] = useState('');
   const [pan, setPan] = useState<string | null>(null);
   const [hasForm16, setHasForm16] = useState(false);
+  const [isFiled, setIsFiled] = useState(false);
+  const [ackNumber, setAckNumber] = useState('');
+  const [filingDate, setFilingDate] = useState('');
 
   // Modals state
   const [stepsModalOpen, setStepsModalOpen] = useState(false);
@@ -52,6 +56,15 @@ export default function DashboardPage() {
 
       const storedName = localStorage.getItem('verified_name');
       if (storedName) setUserName(storedName);
+
+      // Check if return was filed
+      const filed = localStorage.getItem('itr_filed') === 'true';
+      const ack = localStorage.getItem('ack_number');
+      if (filed && ack) {
+        setIsFiled(true);
+        setAckNumber(ack);
+        setFilingDate(localStorage.getItem('ack_date') || 'Today');
+      }
 
       // Fetch user profile from API
       const token = localStorage.getItem('access_token');
@@ -105,105 +118,175 @@ export default function DashboardPage() {
           <div className="relative z-10 space-y-6">
             {/* Filing Status Pill */}
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Filing Status: Assessment Year 2025 - 2026 (current)</span>
+              <span className={`w-2 h-2 rounded-full ${isFiled ? 'bg-emerald-500' : 'bg-emerald-500 animate-pulse'}`} />
+              <span>
+                {isFiled
+                  ? 'Filing Status: AY 2025 - 2026 (Filed & e-Verified)'
+                  : 'Filing Status: Assessment Year 2025 - 2026 (current)'}
+              </span>
             </div>
 
-            {/* Greeting & Headline */}
-            <div>
-              <p className="text-slate-500 text-sm font-medium">Hello {userName},</p>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-                You can finish filing in just 10 mins!
-              </h1>
-              <p className="text-slate-500 text-xs sm:text-sm mt-1">
-                Don't wait until the rush! Auto-fetch your Form 16, AIS, and 26AS seamlessly.
-              </p>
-            </div>
-
-            {/* 3-Step Process Timeline */}
-            <div className="pt-2">
-              <div className="grid grid-cols-3 gap-2 relative">
-                {/* Connecting background line */}
-                <div className="absolute top-4 left-[16%] right-[16%] h-0.5 bg-slate-200 -z-0" />
-
-                {/* Step 1 */}
-                <div className="flex flex-col items-center text-center relative z-10">
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all shadow-xs ${
-                      step1Complete
-                        ? 'bg-emerald-600 text-white ring-4 ring-emerald-50'
-                        : 'bg-white border-2 border-indigo-600 text-indigo-600'
-                    }`}
-                  >
-                    {step1Complete ? <Check className="w-4 h-4" /> : '1'}
+            {isFiled ? (
+              /* ALREADY FILED HERO STATE */
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center gap-2 text-emerald-600 font-bold text-xs uppercase tracking-wider">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Return Successfully Filed &amp; Verified</span>
                   </div>
-                  <span className="text-xs font-semibold text-slate-800 mt-2">
-                    Link PAN & Pre-fill
-                  </span>
-                  <span className="text-[11px] text-slate-400 hidden sm:block">
-                    {step1Complete ? 'Verified' : 'Auto-fetch AIS'}
-                  </span>
+                  <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
+                    Great job, {userName}! Your taxes are filed.
+                  </h1>
+                  <p className="text-slate-500 text-xs sm:text-sm mt-1">
+                    Your ITR-1 return for AY 2025-26 has been submitted to the Income Tax Department and e-verified.
+                  </p>
                 </div>
 
-                {/* Step 2 */}
-                <div className="flex flex-col items-center text-center relative z-10">
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all shadow-xs ${
-                      step2Complete
-                        ? 'bg-emerald-600 text-white ring-4 ring-emerald-50'
-                        : step1Complete
-                        ? 'bg-white border-2 border-indigo-600 text-indigo-600'
-                        : 'bg-white border-2 border-slate-300 text-slate-400'
-                    }`}
-                  >
-                    {step2Complete ? <Check className="w-4 h-4" /> : '2'}
+                <div className="p-4 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">ITR-V Acknowledgement Number</span>
+                    <span className="font-mono font-bold text-emerald-900 text-sm">{ackNumber}</span>
                   </div>
-                  <span className="text-xs font-semibold text-slate-800 mt-2">
-                    Add your Details
-                  </span>
-                  <span className="text-[11px] text-slate-400 hidden sm:block">
-                    Form 16 & Deductions
-                  </span>
-                </div>
-
-                {/* Step 3 */}
-                <div className="flex flex-col items-center text-center relative z-10">
-                  <div className="w-8 h-8 rounded-full bg-white border-2 border-slate-300 text-slate-400 flex items-center justify-center text-xs font-bold shadow-xs">
-                    3
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Submission Date</span>
+                    <span className="font-semibold text-slate-800">{filingDate}</span>
                   </div>
-                  <span className="text-xs font-semibold text-slate-800 mt-2">
-                    File ITR & e-Verify
-                  </span>
-                  <span className="text-[11px] text-slate-400 hidden sm:block">
-                    Instant Acknowledgement
+                  <span className="bg-emerald-200 text-emerald-900 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md">
+                    Verified
                   </span>
                 </div>
               </div>
+            ) : (
+              /* STANDARD 3-STEP PROGRESSION */
+              <>
+                <div>
+                  <p className="text-slate-500 text-sm font-medium">Hello {userName},</p>
+                  <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
+                    You can finish filing in just 10 mins!
+                  </h1>
+                  <p className="text-slate-500 text-xs sm:text-sm mt-1">
+                    Don't wait until the rush! Auto-fetch your Form 16, AIS, and 26AS seamlessly.
+                  </p>
+                </div>
 
-              {/* Know more link */}
-              <div className="mt-4 text-center sm:text-left">
-                <button
-                  onClick={() => setStepsModalOpen(true)}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
-                >
-                  Know more about steps <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
+                {/* 3-Step Process Timeline */}
+                <div className="pt-2">
+                  <div className="grid grid-cols-3 gap-2 relative">
+                    {/* Connecting background line */}
+                    <div className="absolute top-4 left-[16%] right-[16%] h-0.5 bg-slate-200 -z-0" />
+
+                    {/* Step 1 */}
+                    <div className="flex flex-col items-center text-center relative z-10">
+                      <div
+                        className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all shadow-xs ${
+                          step1Complete
+                            ? 'bg-emerald-600 text-white ring-4 ring-emerald-50'
+                            : 'bg-white border-2 border-indigo-600 text-indigo-600'
+                        }`}
+                      >
+                        {step1Complete ? <Check className="w-4 h-4" /> : '1'}
+                      </div>
+                      <span className="text-xs font-semibold text-slate-800 mt-2">
+                        Link PAN & Pre-fill
+                      </span>
+                      <span className="text-[11px] text-slate-400 hidden sm:block">
+                        {step1Complete ? 'Verified' : 'Auto-fetch AIS'}
+                      </span>
+                    </div>
+
+                    {/* Step 2 */}
+                    <div className="flex flex-col items-center text-center relative z-10">
+                      <div
+                        className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all shadow-xs ${
+                          step2Complete
+                            ? 'bg-emerald-600 text-white ring-4 ring-emerald-50'
+                            : step1Complete
+                            ? 'bg-white border-2 border-indigo-600 text-indigo-600'
+                            : 'bg-white border-2 border-slate-300 text-slate-400'
+                        }`}
+                      >
+                        {step2Complete ? <Check className="w-4 h-4" /> : '2'}
+                      </div>
+                      <span className="text-xs font-semibold text-slate-800 mt-2">
+                        Add your Details
+                      </span>
+                      <span className="text-[11px] text-slate-400 hidden sm:block">
+                        Form 16 & Deductions
+                      </span>
+                    </div>
+
+                    {/* Step 3 */}
+                    <div className="flex flex-col items-center text-center relative z-10">
+                      <div className="w-8 h-8 rounded-full bg-white border-2 border-slate-300 text-slate-400 flex items-center justify-center text-xs font-bold shadow-xs">
+                        3
+                      </div>
+                      <span className="text-xs font-semibold text-slate-800 mt-2">
+                        File ITR & e-Verify
+                      </span>
+                      <span className="text-[11px] text-slate-400 hidden sm:block">
+                        Instant Acknowledgement
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Know more link */}
+                  <div className="mt-4 text-center sm:text-left">
+                    <button
+                      onClick={() => setStepsModalOpen(true)}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
+                    >
+                      Know more about steps <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
-          {/* Primary CTA Button */}
+          {/* Primary CTA Button Strip */}
           <div className="relative z-10 pt-6 mt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <Link
-              href={currentCtaHref}
-              className="w-full sm:w-auto px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-md shadow-indigo-600/20 hover:shadow-lg transition-all text-center flex items-center justify-center gap-2 group"
-            >
-              <span>{ctaButtonText}</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-            </Link>
+            {isFiled ? (
+              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                <Link
+                  href="/refund"
+                  className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-md shadow-indigo-600/20 transition-all flex items-center gap-2"
+                >
+                  <Activity className="w-4 h-4" />
+                  <span>Track Refund Status</span>
+                </Link>
+                <Link
+                  href="/export"
+                  className="px-5 py-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl font-bold text-xs transition-colors flex items-center gap-2"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>View ITR-V Receipt</span>
+                </Link>
+                <Link
+                  href="/verify-pan"
+                  onClick={() => {
+                    localStorage.removeItem('verified_pan');
+                    localStorage.removeItem('verified_name');
+                    localStorage.removeItem('parsedTaxData');
+                    localStorage.removeItem('itr_filed');
+                    localStorage.removeItem('ack_number');
+                  }}
+                  className="px-4 py-3 text-indigo-600 hover:text-indigo-700 font-semibold text-xs"
+                >
+                  + File for Another Person
+                </Link>
+              </div>
+            ) : (
+              <Link
+                href={currentCtaHref}
+                className="w-full sm:w-auto px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-md shadow-indigo-600/20 hover:shadow-lg transition-all text-center flex items-center justify-center gap-2 group"
+              >
+                <span>{ctaButtonText}</span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              </Link>
+            )}
 
             <span className="text-xs text-slate-400">
-              Tax regime compared automatically (Old vs New)
+              {isFiled ? 'Processed under Electronic Filing Scheme' : 'Tax regime compared automatically (Old vs New)'}
             </span>
           </div>
         </div>
