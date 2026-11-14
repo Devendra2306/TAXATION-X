@@ -25,7 +25,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Types for the 5 workflow stages
-type FlowStep = 'pan_input' | 'pan_otp' | 'pan_success' | 'itd_otp' | 'prefilling';
+type FlowStep = 'pan_input' | 'itd_otp' | 'prefilling';
 
 export default function StartFilingWorkflowPage() {
   const router = useRouter();
@@ -38,9 +38,7 @@ export default function StartFilingWorkflowPage() {
   const [nameAsPerPan, setNameAsPerPan] = useState('');
   const [dob, setDob] = useState('');
   
-  // OTP States (6-digit arrays)
-  const [phoneOtp, setPhoneOtp] = useState(['', '', '', '', '', '']);
-  const [emailOtp, setEmailOtp] = useState(['', '', '', '', '', '']);
+  // Government ITD Aadhaar OTP State (6-digit array)
   const [itdOtp, setItdOtp] = useState(['', '', '', '', '', '']);
 
   // UI & Loading States
@@ -53,14 +51,12 @@ export default function StartFilingWorkflowPage() {
   const [resendTimer, setResendTimer] = useState(150);
 
   // Input refs for segmented OTP
-  const phoneRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const emailRefs = useRef<(HTMLInputElement | null)[]>([]);
   const itdRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // Countdown timer effect
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if ((currentStep === 'pan_otp' || currentStep === 'itd_otp') && resendTimer > 0) {
+    if (currentStep === 'itd_otp' && resendTimer > 0) {
       interval = setInterval(() => {
         setResendTimer((prev) => (prev > 0 ? prev - 1 : 0));
       }, 1000);
@@ -75,44 +71,27 @@ export default function StartFilingWorkflowPage() {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  // Helper for segmented OTP typing
-  const handleOtpChange = (
-    val: string,
-    index: number,
-    type: 'phone' | 'email' | 'itd'
-  ) => {
+  // Helper for segmented ITD OTP typing
+  const handleOtpChange = (val: string, index: number) => {
     const digit = val.replace(/[^0-9]/g, '').slice(-1);
-    const targetState = type === 'phone' ? [...phoneOtp] : type === 'email' ? [...emailOtp] : [...itdOtp];
-    const setTarget = type === 'phone' ? setPhoneOtp : type === 'email' ? setEmailOtp : setItdOtp;
-    const refs = type === 'phone' ? phoneRefs : type === 'email' ? emailRefs : itdRefs;
-
+    const targetState = [...itdOtp];
     targetState[index] = digit;
-    setTarget(targetState);
+    setItdOtp(targetState);
 
-    // Auto-focus next box
     if (digit && index < 5) {
-      refs.current[index + 1]?.focus();
+      itdRefs.current[index + 1]?.focus();
     }
   };
 
   // Helper for OTP backspace
-  const handleOtpKeyDown = (
-    e: React.KeyboardEvent<HTMLInputElement>,
-    index: number,
-    type: 'phone' | 'email' | 'itd'
-  ) => {
-    const refs = type === 'phone' ? phoneRefs : type === 'email' ? emailRefs : itdRefs;
-    const targetState = type === 'phone' ? phoneOtp : type === 'email' ? emailOtp : itdOtp;
-    if (e.key === 'Backspace' && !targetState[index] && index > 0) {
-      refs.current[index - 1]?.focus();
+  const handleOtpKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
+    if (e.key === 'Backspace' && !itdOtp[index] && index > 0) {
+      itdRefs.current[index - 1]?.focus();
     }
   };
 
   // Helper for OTP paste
-  const handleOtpPaste = (
-    e: React.ClipboardEvent<HTMLInputElement>,
-    type: 'phone' | 'email' | 'itd'
-  ) => {
+  const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
     const pasted = e.clipboardData.getData('text').replace(/[^0-9]/g, '').slice(0, 6);
     if (!pasted) return;
@@ -121,14 +100,10 @@ export default function StartFilingWorkflowPage() {
     for (let i = 0; i < pasted.length; i++) {
       newOtp[i] = pasted[i];
     }
+    setItdOtp(newOtp);
 
-    if (type === 'phone') setPhoneOtp(newOtp);
-    else if (type === 'email') setEmailOtp(newOtp);
-    else setItdOtp(newOtp);
-
-    const refs = type === 'phone' ? phoneRefs : type === 'email' ? emailRefs : itdRefs;
     const focusIndex = Math.min(pasted.length, 5);
-    refs.current[focusIndex]?.focus();
+    itdRefs.current[focusIndex]?.focus();
   };
 
   // ============================================================
@@ -208,9 +183,9 @@ export default function StartFilingWorkflowPage() {
         localStorage.setItem('is_simulated_filing', 'true');
       }
 
-      // Advance to OTP Step
+      // Advance directly to real ITD Aadhaar OTP step
       setResendTimer(150);
-      setCurrentStep('pan_otp');
+      setCurrentStep('itd_otp');
     } catch (err: any) {
       setErrorMessage(err?.message || 'Network error occurred during PAN verification. Please try again.');
     } finally {
@@ -218,33 +193,7 @@ export default function StartFilingWorkflowPage() {
     }
   };
 
-  // 2. Submit PAN OTP (Step 2 -> Step 3)
-  const handlePanOtpVerify = async () => {
-    setErrorMessage('');
-    const fullOtp = phoneOtp.join('') || emailOtp.join('');
-    if (fullOtp.length < 6) {
-      setErrorMessage('Please enter the 6-digit OTP received on your mobile or email');
-      return;
-    }
 
-    setLoading(true);
-    // Simulate or call verification
-    setTimeout(() => {
-      setLoading(false);
-      setCurrentStep('pan_success'); // Moves to Image 3
-    }, 1200);
-  };
-
-  // 3. Move from PAN Success to ITD Prefill OTP (Step 3 -> Step 4)
-  useEffect(() => {
-    if (currentStep === 'pan_success') {
-      const timer = setTimeout(() => {
-        setResendTimer(135);
-        setCurrentStep('itd_otp'); // Moves to Image 4
-      }, 2400);
-      return () => clearTimeout(timer);
-    }
-  }, [currentStep]);
 
   // 4. Submit ITD Pre-fill OTP (Step 4 -> Step 5 -> Review)
   const handleItdPrefill = async () => {
@@ -328,9 +277,7 @@ export default function StartFilingWorkflowPage() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             {currentStep === 'pan_input' && 'Provide your PAN details'}
-            {currentStep === 'pan_otp' && 'Enter OTP for verification'}
-            {currentStep === 'pan_success' && 'Enter OTP for verification'}
-            {currentStep === 'itd_otp' && 'Pre-fill your details from Income Tax Department'}
+            {currentStep === 'itd_otp' && 'Enter Aadhaar / ITD OTP to fetch your tax details'}
             {currentStep === 'prefilling' && (
               <span className="flex items-center gap-2">
                 Pre-fill your tax return in 5 seconds
@@ -383,7 +330,7 @@ export default function StartFilingWorkflowPage() {
 
             <div className="relative z-10 space-y-6">
               {/* PAN Illustration Card (Steps 1, 2, 3) */}
-              {(currentStep === 'pan_input' || currentStep === 'pan_otp' || currentStep === 'pan_success') && (
+              {currentStep === 'pan_input' && (
                 <div className="space-y-6">
                   {/* Realistic PAN Card Mockup */}
                   <div className="w-full max-w-xs mx-auto aspect-[1.58/1] rounded-2xl p-4 bg-gradient-to-br from-blue-200 via-sky-100 to-indigo-100 text-slate-800 shadow-xl border border-sky-300/40 relative overflow-hidden">
@@ -597,190 +544,6 @@ export default function StartFilingWorkflowPage() {
               )}
 
               {/* -------------------------------------------------------- */}
-              {/* STEP 2: Enter OTP for verification (Image 2)             */}
-              {/* -------------------------------------------------------- */}
-              {currentStep === 'pan_otp' && (
-                <motion.div
-                  key="step-otp"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="max-w-md mx-auto w-full space-y-6"
-                >
-                  <div>
-                    <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900">
-                      Enter OTP to verify
-                    </h2>
-                    <div className="flex items-center justify-between text-xs sm:text-sm text-slate-500 mt-1">
-                      <span>Verifying via IT Dept registered phone</span>
-                      <button
-                        onClick={() => setCurrentStep('pan_input')}
-                        className="text-indigo-600 font-semibold hover:underline"
-                      >
-                        Change method
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-5">
-                    {/* Phone OTP segment */}
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-2">
-                        Enter OTP sent to your Phone number
-                      </label>
-                      <div className="flex items-center gap-2 sm:gap-3">
-                        {phoneOtp.map((digit, idx) => (
-                          <input
-                            key={`phone-${idx}`}
-                            ref={(el) => {
-                              phoneRefs.current[idx] = el;
-                            }}
-                            type="text"
-                            inputMode="numeric"
-                            maxLength={1}
-                            value={digit}
-                            onChange={(e) => handleOtpChange(e.target.value, idx, 'phone')}
-                            onKeyDown={(e) => handleOtpKeyDown(e.key as any, idx, 'phone')}
-                            onPaste={(e) => handleOtpPaste(e, 'phone')}
-                            className="w-11 h-12 sm:w-12 sm:h-14 text-center text-lg font-bold border-2 border-slate-200 rounded-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
-                          />
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Email OTP segment */}
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-2">
-                        Enter OTP sent to your Email
-                      </label>
-                      <div className="flex items-center gap-2 sm:gap-3">
-                        {emailOtp.map((digit, idx) => (
-                          <input
-                            key={`email-${idx}`}
-                            ref={(el) => {
-                              emailRefs.current[idx] = el;
-                            }}
-                            type="text"
-                            inputMode="numeric"
-                            maxLength={1}
-                            value={digit}
-                            onChange={(e) => handleOtpChange(e.target.value, idx, 'email')}
-                            onKeyDown={(e) => handleOtpKeyDown(e.key as any, idx, 'email')}
-                            onPaste={(e) => handleOtpPaste(e, 'email')}
-                            className="w-11 h-12 sm:w-12 sm:h-14 text-center text-lg font-bold border-2 border-slate-200 rounded-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
-                          />
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Resend Timer Notice */}
-                    <div className="text-xs text-slate-500">
-                      OTPs may take up to 150s{' '}
-                      {resendTimer > 0 ? (
-                        <span className="text-indigo-600 font-medium">
-                          Resend both OTPs ({formatTimer(resendTimer)})
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => setResendTimer(150)}
-                          className="text-indigo-600 font-bold hover:underline"
-                        >
-                          Resend both OTPs
-                        </button>
-                      )}
-                    </div>
-
-                    {errorMessage && (
-                      <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl">
-                        {errorMessage}
-                      </div>
-                    )}
-
-                    {/* Continue Button */}
-                    <button
-                      onClick={handlePanOtpVerify}
-                      disabled={loading}
-                      className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-2"
-                    >
-                      {loading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" /> Verifying OTP...
-                        </>
-                      ) : (
-                        'Continue'
-                      )}
-                    </button>
-
-                    {/* Skip */}
-                    <div className="text-center pt-2">
-                      <button
-                        onClick={handleSkip}
-                        className="text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
-                      >
-                        Skip
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-
-              {/* -------------------------------------------------------- */}
-              {/* STEP 3: PAN verification Successful (Image 3)            */}
-              {/* -------------------------------------------------------- */}
-              {currentStep === 'pan_success' && (
-                <motion.div
-                  key="step-success"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="max-w-md mx-auto w-full text-center space-y-6 py-8"
-                >
-                  {/* PAN Card with Floating Green Check Badge */}
-                  <div className="relative inline-block">
-                    <div className="w-64 h-36 rounded-2xl p-3 bg-gradient-to-br from-blue-100 via-sky-50 to-indigo-100 text-slate-800 shadow-xl border border-sky-300/40 relative">
-                      <div className="flex justify-between items-center text-[7px] font-bold text-slate-600 border-b border-slate-300 pb-1">
-                        <span>INCOME TAX DEPARTMENT</span>
-                        <span>GOVT. OF INDIA</span>
-                      </div>
-                      <div className="mt-3 text-left">
-                        <span className="text-[7px] text-slate-400">Permanent Account Number</span>
-                        <div className="font-mono font-bold text-xs tracking-wider text-slate-800">
-                          {panNumber ? panNumber.toUpperCase() : 'ABCDE1234F'}
-                        </div>
-                        <span className="text-[7px] text-slate-400 mt-2 block">Name</span>
-                        <div className="font-bold text-[10px] text-slate-800 truncate">
-                          {verifiedName || 'Taxpayer'}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Animated Floating Green Check Badge */}
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: 'spring', damping: 10, stiffness: 150 }}
-                      className="absolute -top-3 -right-3 w-12 h-12 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/30 border-2 border-white"
-                    >
-                      <Check className="w-6 h-6 stroke-[3]" />
-                    </motion.div>
-                  </div>
-
-                  <div>
-                    <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900">
-                      PAN verification Successful
-                    </h2>
-                    <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-sm mx-auto">
-                      Your PAN details are successfully verified with the Income Tax Department.
-                    </p>
-                  </div>
-
-                  <div className="text-xs text-indigo-600 font-semibold flex items-center justify-center gap-2 pt-2">
-                    <Loader2 className="w-4 h-4 animate-spin" /> Preparing ITD Data Pre-fill...
-                  </div>
-                </motion.div>
-              )}
-
-              {/* -------------------------------------------------------- */}
               {/* STEP 4: Enter New OTP to fetch details from ITD (Image 4)*/}
               {/* -------------------------------------------------------- */}
               {currentStep === 'itd_otp' && (
@@ -829,9 +592,9 @@ export default function StartFilingWorkflowPage() {
                             inputMode="numeric"
                             maxLength={1}
                             value={digit}
-                            onChange={(e) => handleOtpChange(e.target.value, idx, 'itd')}
-                            onKeyDown={(e) => handleOtpKeyDown(e.key as any, idx, 'itd')}
-                            onPaste={(e) => handleOtpPaste(e, 'itd')}
+                            onChange={(e) => handleOtpChange(e.target.value, idx)}
+                            onKeyDown={(e) => handleOtpKeyDown(e, idx)}
+                            onPaste={(e) => handleOtpPaste(e)}
                             className="w-11 h-12 sm:w-12 sm:h-14 text-center text-lg font-bold border-2 border-slate-200 rounded-xl focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
                           />
                         ))}
