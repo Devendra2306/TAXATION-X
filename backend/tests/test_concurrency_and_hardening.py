@@ -311,7 +311,7 @@ def test_concurrent_first_submits_only_call_sandbox_once(db_session, sample_user
 
     def run_submit():
         local_session = TestingSessionLocal()
-        u = local_session.query(User).filter(User.id == user_id).first()
+        u = local_session.query(User).filter(User.id == user_id).first() or sample_user
         try:
             return asyncio.run(
                 submit_tax_return(

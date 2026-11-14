@@ -4,8 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { Scale, ArrowRight, CheckCircle2, TrendingDown, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-
 import { useRouter } from 'next/navigation';
+import { CURRENT_ASSESSMENT_YEAR } from '@/lib/assessmentYear';
 
 export default function ComparePage() {
   const router = useRouter();
@@ -28,7 +28,11 @@ export default function ComparePage() {
         const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
         const res = await fetch(`${API_URL}/api/tax/compute`, {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ assessment_year: CURRENT_ASSESSMENT_YEAR })
         });
         
         if (res.ok) {
@@ -36,10 +40,9 @@ export default function ComparePage() {
           setDbResult(result);
           // Set recommendation
           setSelectedRegime(result.recommendation.regime);
-          // Just setting basic data for UI rendering if needed
           setData({
              gross_salary: result.old_regime.gross_income,
-             deductions_80c: result.old_regime.total_deductions - 50000,
+             deductions_80c: result.old_regime.deductions_80c,
              tds_deducted: result.recommendation.refund > 0 ? (result.recommendation.refund + Math.min(result.old_regime.total_tax, result.new_regime.total_tax)) : 0
           });
         }
@@ -53,13 +56,27 @@ export default function ComparePage() {
   }, [router]);
 
   const calculateTax = () => {
+    // If backend computed result exists, prioritize it
+    if (dbResult) {
+      return {
+        grossTotal: dbResult.new_regime.gross_income,
+        totalDeductionsOld: dbResult.old_regime.total_deductions,
+        totalDeductionsNew: dbResult.new_regime.total_deductions,
+        taxableOld: dbResult.old_regime.taxable_income,
+        taxableNew: dbResult.new_regime.taxable_income,
+        taxOld: Math.round(dbResult.old_regime.total_tax),
+        taxNew: Math.round(dbResult.new_regime.total_tax),
+      };
+    }
+
     const s = data.gross_salary;
     const d80c = Math.min(data.deductions_80c, 150000);
-    const standardDeduction = 50000;
+    const standardDeductionOld = 50000;
+    const standardDeductionNew = 75000;
     const grossTotal = s;
 
     // OLD REGIME
-    const totalDeductionsOld = standardDeduction + d80c;
+    const totalDeductionsOld = standardDeductionOld + d80c;
     let taxableOld = grossTotal - totalDeductionsOld;
     if (taxableOld < 0) taxableOld = 0;
 
@@ -74,22 +91,26 @@ export default function ComparePage() {
       taxOld = taxOld * 1.04; // Cess
     }
 
-    // NEW REGIME
-    const totalDeductionsNew = standardDeduction;
+    // NEW REGIME (AY 2026-27 / FY 2025-26)
+    const totalDeductionsNew = standardDeductionNew;
     let taxableNew = grossTotal - totalDeductionsNew;
     if (taxableNew < 0) taxableNew = 0;
 
     let taxNew = 0;
-    if (taxableNew <= 700000) {
-      taxNew = 0; // 87A rebate
+    if (taxableNew <= 1200000) {
+      taxNew = 0; // 87A full rebate up to 12L taxable income
     } else {
-      let remaining = taxableNew;
-      if (remaining > 1500000) { taxNew += (remaining - 1500000) * 0.30; remaining = 1500000; }
-      if (remaining > 1200000) { taxNew += (remaining - 1200000) * 0.20; remaining = 1200000; }
-      if (remaining > 900000) { taxNew += (remaining - 900000) * 0.15; remaining = 900000; }
-      if (remaining > 600000) { taxNew += (remaining - 600000) * 0.10; remaining = 600000; }
-      if (remaining > 300000) { taxNew += (remaining - 300000) * 0.05; remaining = 300000; }
-      taxNew = taxNew * 1.04; // Cess
+      let slabTax = 0;
+      if (taxableNew > 2400000) { slabTax += (taxableNew - 2400000) * 0.30; }
+      if (taxableNew > 2000000) { slabTax += (Math.min(taxableNew, 2400000) - 2000000) * 0.25; }
+      if (taxableNew > 1600000) { slabTax += (Math.min(taxableNew, 2000000) - 1600000) * 0.20; }
+      if (taxableNew > 1200000) { slabTax += (Math.min(taxableNew, 1600000) - 1200000) * 0.15; }
+      slabTax += 60000; // 20k from 4-8L + 40k from 8-12L
+
+      // Section 87A Marginal Relief
+      const excess = taxableNew - 1200000;
+      const taxBeforeCess = Math.min(slabTax, excess);
+      taxNew = taxBeforeCess * 1.04; // 4% Cess
     }
 
     return {
@@ -115,8 +136,8 @@ export default function ComparePage() {
     <div className="max-w-5xl mx-auto space-y-8 pb-16">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Regime Comparison</h1>
-          <p className="text-slate-500">We computed your tax under both regimes. See which saves you more.</p>
+          <h1 className="text-2xl font-bold text-slate-800">Regime Comparison (AY {CURRENT_ASSESSMENT_YEAR})</h1>
+          <p className="text-slate-500">We computed your tax under both regimes using AY {CURRENT_ASSESSMENT_YEAR} statutory slabs. See which saves you more.</p>
         </div>
         <div className="flex items-center gap-3">
           <Link href="/export" className="btn-primary flex items-center gap-2">
@@ -159,7 +180,7 @@ export default function ComparePage() {
               <h3 className="text-xl font-bold text-slate-800">New Tax Regime</h3>
               {selectedRegime === 'new' && <CheckCircle2 className="text-emerald-500 fill-emerald-100" />}
             </div>
-            <p className="text-sm text-slate-500 mb-6">Default regime for FY 2024-25. Lower slab rates, but most deductions (like 80C, HRA) are not allowed.</p>
+            <p className="text-sm text-slate-500 mb-6">Default regime for AY {CURRENT_ASSESSMENT_YEAR}. Zero tax up to ₹12.75 Lakhs for salaried assessees with ₹75,000 Standard Deduction.</p>
             
             <div className="bg-white rounded-xl p-4 border border-slate-200 mb-6 text-center">
               <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-1">Total Tax Payable</div>
@@ -173,7 +194,7 @@ export default function ComparePage() {
               </div>
               <div className="flex justify-between py-2 border-b border-slate-100">
                 <span className="text-slate-500">Standard Deduction</span>
-                <span className="font-medium text-emerald-600">-{fmt(50000)}</span>
+                <span className="font-medium text-emerald-600">-{fmt(75000)}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-slate-100">
                 <span className="text-slate-500">Other Deductions Allowed</span>
@@ -201,7 +222,7 @@ export default function ComparePage() {
               <h3 className="text-xl font-bold text-slate-800">Old Tax Regime</h3>
               {selectedRegime === 'old' && <CheckCircle2 className="text-primary fill-indigo-100" />}
             </div>
-            <p className="text-sm text-slate-500 mb-6">Traditional regime. Higher slab rates, but allows you to claim all your investments and deductions.</p>
+            <p className="text-sm text-slate-500 mb-6">Traditional regime. Higher slab rates, but allows you to claim all your investments (80C, 80D, Home Loan interest).</p>
             
             <div className="bg-white rounded-xl p-4 border border-slate-200 mb-6 text-center">
               <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-1">Total Tax Payable</div>
@@ -218,7 +239,7 @@ export default function ComparePage() {
                 <span className="font-medium text-primary">-{fmt(50000)}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-slate-100">
-                <span className="text-slate-500">80C & Other Deductions</span>
+                <span className="text-slate-500">80C &amp; Other Deductions</span>
                 <span className="font-medium text-primary">-{fmt(results.totalDeductionsOld - 50000)}</span>
               </div>
               <div className="flex justify-between py-2 font-semibold">

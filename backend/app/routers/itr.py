@@ -237,13 +237,13 @@ async def submit_tax_return(request: FilingRequest, current_user: User = Depends
     import httpx
     from app.routers.profile import export_itr_json
     from app.models.tax_profile import TaxProfile
-    
-    profile = db.query(TaxProfile).filter(TaxProfile.user_id == current_user.id).first()
-    if not profile or not profile.pan:
-        raise HTTPException(status_code=400, detail="PAN is required to submit a tax return.")
 
     user_lock = get_filing_lock(current_user.id, request.assessment_year)
     with user_lock:
+        profile = db.query(TaxProfile).filter(TaxProfile.user_id == current_user.id).first()
+        if not profile or not profile.pan:
+            raise HTTPException(status_code=400, detail="PAN is required to submit a tax return.")
+
         # 1. Atomic load-or-create of filing inside user/AY mutex
         filing = (
             db.query(Filing)
