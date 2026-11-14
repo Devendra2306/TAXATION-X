@@ -65,6 +65,36 @@ export default function ExportPage() {
         });
         setEfileStatus('success');
       }
+
+      // Sync from backend filing status endpoint
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      if (token) {
+        fetch(`${API_URL}/api/itr/status`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((statusData) => {
+            if (
+              statusData &&
+              ['submitted', 'everify_pending', 'verified'].includes(statusData.status)
+            ) {
+              const ack = statusData.acknowledgement_number || localStorage.getItem('ack_number');
+              if (ack) {
+                setAckDetails({
+                  ack_number: ack,
+                  date: statusData.date_of_filing || localStorage.getItem('ack_date') || 'Recent',
+                  form: 'ITR-1 (Sahaj)',
+                  status: statusData.status === 'verified' ? 'Filed & Verified' : 'Submitted (e-Verify Pending)'
+                });
+                setEfileStatus('success');
+                localStorage.setItem('itr_filed', 'true');
+                localStorage.setItem('ack_number', ack);
+              }
+            }
+          })
+          .catch(() => {});
+      }
     }
   }, []);
 

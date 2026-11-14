@@ -17,11 +17,13 @@ class FilingRequest(BaseModel):
     bank_account_id: Optional[str] = None
     
 class ITRStatusResponse(BaseModel):
-    pan_number: str
-    assessment_year: str
+    pan_number: Optional[str] = None
+    assessment_year: str = "2025-26"
     status: str
     acknowledgement_number: Optional[str] = None
     date_of_filing: Optional[str] = None
+    submitted_at: Optional[str] = None
+    failure_reason: Optional[str] = None
 
 class PrefillDataResponse(BaseModel):
     pan: str
