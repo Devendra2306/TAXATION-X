@@ -255,7 +255,7 @@ export default function ExportPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ pan_number: pan || 'ABCDE1234F' })
+        body: JSON.stringify({ pan_number: pan })
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -279,31 +279,13 @@ export default function ExportPage() {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      let jsonPayload: any;
-      if (res.ok) {
-        jsonPayload = await res.json();
-      } else {
-        // Fallback JSON payload matching official schema
-        jsonPayload = {
-          ITR: {
-            ITR1: {
-              CreationInfo: {
-                SWVersionNo: '1.0',
-                SWCreatedBy: 'NexTax Platform',
-                XMLCreatedBy: 'NexTax',
-                XMLCreationDate: new Date().toISOString().split('T')[0],
-                IntermediaryCity: 'Bangalore'
-              },
-              PersonalInfo: {
-                AssesseeName: { FirstName: name, SurNameOrOrgName: '' },
-                PAN: pan || 'ABCDE1234F',
-                AssessmentYear: '2025'
-              },
-              FilingStatus: { ReturnFileSec: '11' }
-            }
-          }
-        };
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setDownloadStatus('idle');
+        setErrorMessage(data.detail || 'Failed to export official ITR JSON. Please ensure your PAN and computation are reviewed.');
+        return;
       }
+      const jsonPayload = data;
 
       const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(jsonPayload, null, 2));
       const downloadAnchorNode = document.createElement('a');

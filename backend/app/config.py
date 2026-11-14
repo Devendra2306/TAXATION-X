@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     # External APIs for PAN Verification / E-Filing
     EXTERNAL_API_KEY: str = ""
     EXTERNAL_API_SECRET: str = ""
+    SANDBOX_BASE_URL: str = "https://api.sandbox.co.in"
+    SANDBOX_PAN_VERIFY_ENDPOINT: str = "/kyc/pan/verify"
+    SANDBOX_GENERATE_OTP_ENDPOINT: str = "/tax/itr/generate-otp"
+    SANDBOX_PREFILL_ENDPOINT: str = "/tax/itr/prefill"
+    SANDBOX_SUBMIT_ENDPOINT: str = "/tax/itr/submit"
+    SANDBOX_EVERIFY_ENDPOINT: str = "/tax/itr/e-verify"
+    SANDBOX_STATUS_ENDPOINT: str = "/tax/itr/status"
     
     # Demonstration Mode (when False, strict honest errors are raised; when True, safe simulation fallbacks are allowed)
     DEMO_MODE: bool = False

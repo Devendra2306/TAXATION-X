@@ -25,6 +25,15 @@ router = APIRouter(prefix="/api/itr", tags=["ITR E-Filing"])
 
 # Per-user daily OTP limit tracking
 _otp_lock = threading.Lock()
+_filing_locks_mutex = threading.Lock()
+_filing_locks: Dict[str, threading.Lock] = {}
+
+def get_filing_lock(user_id: int, assessment_year: str) -> threading.Lock:
+    key = f"{user_id}:{assessment_year}"
+    with _filing_locks_mutex:
+        if key not in _filing_locks:
+            _filing_locks[key] = threading.Lock()
+        return _filing_locks[key]
 _user_daily_otp_count: Dict[str, int] = {}
 MAX_DAILY_OTP_PER_USER = 5
 
@@ -203,8 +212,10 @@ async def submit_tax_return(request: FilingRequest, current_user: User = Depends
     """
     Idempotent submit: Constructs official ITR schema JSON and submits via ERI.
     Refuses if in wrong state, returns existing ack if already submitted,
-    and sets status to everify_pending upon successful upstream response.
+    gates against timeouts to prevent duplicate submissions, and sets status
+    to everify_pending upon successful upstream response.
     """
+    import httpx
     from app.routers.profile import export_itr_json
     from app.models.tax_profile import TaxProfile
     
@@ -212,108 +223,175 @@ async def submit_tax_return(request: FilingRequest, current_user: User = Depends
     if not profile or not profile.pan:
         raise HTTPException(status_code=400, detail="PAN is required to submit a tax return.")
 
-    # 1. Load or create the user's filing with DB row lock if supported
-    query = db.query(Filing).filter(
-        Filing.user_id == current_user.id,
-        Filing.assessment_year == request.assessment_year
-    )
-    if db.bind and db.bind.dialect.name == "postgresql":
-        filing = query.with_for_update().first()
-    else:
-        filing = query.first()
-
-    if not filing:
-        filing = Filing(
-            user_id=current_user.id,
-            assessment_year=request.assessment_year,
-            tax_computation_id=request.tax_computation_id,
-            status=FilingStatus.DRAFT.value
+    user_lock = get_filing_lock(current_user.id, request.assessment_year)
+    with user_lock:
+        # 1. Atomic load-or-create of filing inside user/AY mutex
+        filing = (
+            db.query(Filing)
+            .filter(Filing.user_id == current_user.id, Filing.assessment_year == request.assessment_year)
+            .first()
         )
-        db.add(filing)
-        db.commit()
-        db.refresh(filing)
+        if not filing:
+            try:
+                filing = Filing(
+                    user_id=current_user.id,
+                    assessment_year=request.assessment_year,
+                    tax_computation_id=request.tax_computation_id,
+                    status=FilingStatus.DRAFT.value
+                )
+                db.add(filing)
+                db.commit()
+                db.refresh(filing)
+            except Exception:
+                db.rollback()
+                filing = (
+                    db.query(Filing)
+                    .filter(Filing.user_id == current_user.id, Filing.assessment_year == request.assessment_year)
+                    .first()
+                )
 
-    # 2. Idempotent check: if already submitted, everify_pending, or verified, return existing details
-    if filing.status in [FilingStatus.SUBMITTED.value, FilingStatus.EVERIFY_PENDING.value, FilingStatus.VERIFIED.value]:
-        return {
-            "status": "SUCCESS",
-            "message": f"ITR already submitted. Current status: {filing.status}",
-            "ack_number": filing.ack_number,
-            "filing_status": filing.status,
-            "simulated": False
-        }
+        if db.bind and db.bind.dialect.name == "postgresql":
+            filing = (
+                db.query(Filing)
+                .filter(Filing.id == filing.id)
+                .with_for_update()
+                .first()
+            )
 
-    # 3. Refuse unless status is in allowed states (draft, paid, failed)
-    allowed_states = [FilingStatus.DRAFT.value, FilingStatus.PAID.value, FilingStatus.FAILED.value]
-    if filing.status not in allowed_states:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Filing cannot be submitted in '{filing.status}' status."
-        )
+        # 2. Idempotent check: if already submitted, everify_pending, or verified, return existing details
+        if filing.status in [FilingStatus.SUBMITTED.value, FilingStatus.EVERIFY_PENDING.value, FilingStatus.VERIFIED.value]:
+            return {
+                "status": "SUCCESS",
+                "message": f"ITR already submitted. Current status: {filing.status}",
+                "ack_number": filing.ack_number,
+                "filing_status": filing.status,
+                "simulated": False
+            }
 
-    # 4. Check ITR-1 statutory eligibility before proceeding
-    total_income = float(profile.gross_salary or 0) + float(profile.other_income or 0) + float(profile.capital_gains or 0)
-    if (profile.capital_gains or 0) > 0:
-        raise HTTPException(
-            status_code=422,
-            detail="ITR-1 is not applicable: Capital gains detected. Assessee must file using ITR-2."
-        )
-    if total_income > 5000000:
-        raise HTTPException(
-            status_code=422,
-            detail=f"ITR-1 is not applicable: Total income (₹{total_income:,.0f}) exceeds the ₹50 Lakh threshold. Assessee must file using ITR-2."
-        )
+        # 3. Timeout / in-flight protection: if status is SUBMITTING, check upstream before retrying!
+        if filing.status == FilingStatus.SUBMITTING.value:
+            upstream = await eri_service.check_upstream_filing_status(profile.pan, request.assessment_year)
+            if upstream.get("exists") and upstream.get("ack_number"):
+                # Return was already received upstream!
+                filing.status = FilingStatus.EVERIFY_PENDING.value
+                filing.ack_number = upstream["ack_number"]
+                filing.submitted_at = datetime.now(timezone.utc)
+                filing.failure_reason = None
+                db.commit()
+                db.refresh(filing)
+                return {
+                    "status": "SUCCESS",
+                    "message": "ITR submission was already received and acknowledged by Government portal.",
+                    "ack_number": filing.ack_number,
+                    "filing_status": filing.status,
+                    "simulated": False
+                }
+            elif upstream.get("status") == "NETWORK_ERROR":
+                raise HTTPException(
+                    status_code=504,
+                    detail="Cannot verify status with Income Tax Department due to network timeout. Retry prevented to avoid duplicate submission. Please check status shortly."
+                )
+            else:
+                # Upstream confirmed return does not exist; safe to allow retry
+                filing.status = FilingStatus.DRAFT.value
+                db.commit()
 
-    # 5. Generate and validate the official ITR schema JSON payload
-    itr_json_payload = export_itr_json(db=db, current_user=current_user)
-    validation_errors = eri_service.validate_itr1_schema(itr_json_payload)
-    if validation_errors:
-        raise HTTPException(
-            status_code=422,
-            detail=f"ITR JSON schema validation failed: {'; '.join(validation_errors)}"
-        )
+        # 4. Refuse unless status is in allowed states (draft, paid, failed)
+        allowed_states = [FilingStatus.DRAFT.value, FilingStatus.PAID.value, FilingStatus.FAILED.value]
+        if filing.status not in allowed_states:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Filing cannot be submitted in '{filing.status}' status."
+            )
 
-    filing.set_itr_data(itr_json_payload)
-    if request.tax_computation_id:
-        filing.tax_computation_id = request.tax_computation_id
+        # 5. Check ITR-1 statutory eligibility before proceeding
+        total_income = float(profile.gross_salary or 0) + float(profile.other_income or 0) + float(profile.capital_gains or 0)
+        if (profile.capital_gains or 0) > 0:
+            raise HTTPException(
+                status_code=422,
+                detail="ITR-1 is not applicable: Capital gains detected. Assessee must file using ITR-2."
+            )
+        if total_income > 5000000:
+            raise HTTPException(
+                status_code=422,
+                detail=f"ITR-1 is not applicable: Total income (₹{total_income:,.0f}) exceeds the ₹50 Lakh threshold. Assessee must file using ITR-2."
+            )
 
-    # 6. Call Sandbox ERI
-    try:
-        result = await eri_service.submit_itr(profile.pan, itr_json_payload)
-        
-        ack_number = result.get("ack_number")
-        if not ack_number or ack_number == "PENDING":
-            raise HTTPException(status_code=502, detail="Upstream did not return a valid acknowledgement number.")
+        # 6. Generate and validate the official ITR schema JSON payload with assessment_year
+        itr_json_payload = export_itr_json(assessment_year=request.assessment_year, db=db, current_user=current_user)
+        validation_errors = eri_service.validate_itr1_schema(itr_json_payload, expected_ay=request.assessment_year)
+        if validation_errors:
+            raise HTTPException(
+                status_code=422,
+                detail=f"ITR JSON schema validation failed: {'; '.join(validation_errors)}"
+            )
 
-        # Successfully submitted: now awaiting e-verification within 30 days
-        filing.status = FilingStatus.EVERIFY_PENDING.value
-        filing.ack_number = ack_number
-        filing.submitted_at = datetime.now(timezone.utc)
+        filing.set_itr_data(itr_json_payload)
+        if request.tax_computation_id:
+            filing.tax_computation_id = request.tax_computation_id
+
+        # 7. Transition to SUBMITTING before invoking external Sandbox network call
+        filing.status = FilingStatus.SUBMITTING.value
         filing.failure_reason = None
         db.commit()
         db.refresh(filing)
 
-        log_sandbox_usage(db, "/tax/itr/submit", 200, result.get("simulated", False), current_user.id)
+        # 8. Call Sandbox ERI
+        try:
+            result = await eri_service.submit_itr(profile.pan, itr_json_payload)
+            
+            ack_number = result.get("ack_number")
+            if not ack_number or ack_number == "PENDING":
+                raise HTTPException(status_code=502, detail="Upstream did not return a valid acknowledgement number.")
 
-        return {
-            "status": "SUCCESS",
-            "message": result.get("message", "ITR Submitted Successfully"),
-            "ack_number": ack_number,
-            "filing_status": filing.status,
-            "simulated": result.get("simulated", False),
-            "raw": result.get("raw")
-        }
-    except Exception as exc:
-        filing.status = FilingStatus.FAILED.value
-        detail_msg = exc.detail if isinstance(exc, HTTPException) else str(exc)
-        filing.failure_reason = detail_msg
-        db.commit()
-        status_code = exc.status_code if isinstance(exc, HTTPException) else 500
-        log_sandbox_usage(db, "/tax/itr/submit", status_code, False, current_user.id)
-        if isinstance(exc, HTTPException):
+            # Successfully submitted: now awaiting e-verification within 30 days
+            filing.status = FilingStatus.EVERIFY_PENDING.value
+            filing.ack_number = ack_number
+            filing.submitted_at = datetime.now(timezone.utc)
+            filing.failure_reason = None
+            db.commit()
+            db.refresh(filing)
+
+            log_sandbox_usage(db, "/tax/itr/submit", 200, result.get("simulated", False), current_user.id)
+
+            return {
+                "status": "SUCCESS",
+                "message": result.get("message", "ITR Submitted Successfully"),
+                "ack_number": ack_number,
+                "filing_status": filing.status,
+                "simulated": result.get("simulated", False),
+                "raw": result.get("raw")
+            }
+        except (httpx.TimeoutException, httpx.RequestError) as timeout_exc:
+            # Network timeout: Keep status as SUBMITTING to protect against duplicate submission on blind retry
+            filing.status = FilingStatus.SUBMITTING.value
+            filing.failure_reason = (
+                "Submission timed out while awaiting acknowledgement from Government portal. "
+                "Verification with upstream will be performed prior to any retry."
+            )
+            db.commit()
+            log_sandbox_usage(db, "/tax/itr/submit", 504, False, current_user.id)
+            raise HTTPException(
+                status_code=504,
+                detail=(
+                    "Submission timed out while awaiting response from Income Tax Department. "
+                    "Your filing is currently marked 'submitting'. System will verify upstream status before allowing a retry "
+                    "to prevent duplicate filing."
+                )
+            )
+        except HTTPException as exc:
+            filing.status = FilingStatus.FAILED.value
+            filing.failure_reason = exc.detail
+            db.commit()
+            log_sandbox_usage(db, "/tax/itr/submit", exc.status_code, False, current_user.id)
             raise exc
-        raise HTTPException(status_code=500, detail=f"ITR submission failed: {detail_msg}")
-
+        except Exception as exc:
+            filing.status = FilingStatus.FAILED.value
+            detail_msg = str(exc)
+            filing.failure_reason = detail_msg
+            db.commit()
+            log_sandbox_usage(db, "/tax/itr/submit", 500, False, current_user.id)
+            raise HTTPException(status_code=500, detail=f"ITR submission failed: {detail_msg}")
 
 @router.post("/everify")
 async def everify_tax_return(

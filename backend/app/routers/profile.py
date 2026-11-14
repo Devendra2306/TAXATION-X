@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+from datetime import datetime, date
+import re
 
 from app.database import get_db
 from app.models.user import User
@@ -47,14 +49,37 @@ def save_profile(data: Dict[str, Any], db: Session = Depends(get_db), current_us
     return {"message": "Profile saved successfully"}
 
 @router.get("/export-json")
-def export_itr_json(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def export_itr_json(
+    assessment_year: str = "2025-26",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     profile = db.query(TaxProfile).filter(TaxProfile.user_id == current_user.id).first()
     
     if not profile:
         raise HTTPException(status_code=404, detail="Tax profile not found. Please review data first.")
         
+    if not profile.pan:
+        raise HTTPException(status_code=400, detail="PAN is required in tax profile to generate ITR JSON.")
+
+    if not re.match(r"^[A-Z]{5}[0-9]{4}[A-Z]{1}$", profile.pan):
+        raise HTTPException(status_code=400, detail=f"Invalid PAN format '{profile.pan}' in tax profile.")
+
     from app.models.tax_computation import TaxComputation
-    computation = db.query(TaxComputation).filter(TaxComputation.user_id == current_user.id).order_by(TaxComputation.id.desc()).first()
+    computation = (
+        db.query(TaxComputation)
+        .filter(TaxComputation.user_id == current_user.id, TaxComputation.assessment_year == assessment_year)
+        .order_by(TaxComputation.id.desc())
+        .first()
+    )
+    if not computation:
+        # Fallback to latest computation if specific AY record isn't explicitly tagged
+        computation = (
+            db.query(TaxComputation)
+            .filter(TaxComputation.user_id == current_user.id)
+            .order_by(TaxComputation.id.desc())
+            .first()
+        )
     
     if not computation:
         raise HTTPException(status_code=400, detail="Please visit the Compare Regimes page to compute your tax before downloading.")
@@ -62,7 +87,11 @@ def export_itr_json(db: Session = Depends(get_db), current_user: User = Depends(
     regime = computation.recommended_regime
     is_new = regime == "new"
     
-    # Standard Govt ITR-1 Schema (AY 2025-26)
+    # Official ITD schema specifies the Assessment Year start year (e.g. '2025' for AY 2025-26, '2026' for AY 2026-27)
+    ay_start_year = assessment_year.split("-")[0] if "-" in assessment_year else assessment_year
+    creation_date = datetime.now().strftime("%Y-%m-%d")
+
+    # Standard Govt ITR-1 Schema
     itr_json = {
         "ITR": {
             "ITR1": {
@@ -70,13 +99,15 @@ def export_itr_json(db: Session = Depends(get_db), current_user: User = Depends(
                     "SWVersionNo": "1.0",
                     "SWCreatedBy": "NexTax",
                     "XMLCreatedBy": "NexTax",
-                    "XMLCreationDate": "2025-05-01",
+                    "JSONCreatedBy": "NexTax",
+                    "XMLCreationDate": creation_date,
+                    "JSONCreationDate": creation_date,
                     "IntermediaryCity": "Mumbai"
                 },
                 "Form_ITR1": {
                     "FormName": "ITR-1",
                     "Description": "For individuals being a resident having total income upto Rs.50 lakh.",
-                    "AssessmentYear": "2025",
+                    "AssessmentYear": ay_start_year,
                     "SchemaVer": "1.0"
                 },
                 "PersonalInfo": {
@@ -84,7 +115,7 @@ def export_itr_json(db: Session = Depends(get_db), current_user: User = Depends(
                         "FirstName": current_user.full_name.split()[0] if current_user.full_name else "User",
                         "SurName": current_user.full_name.split()[-1] if current_user.full_name and " " in current_user.full_name else ""
                     },
-                    "PAN": profile.pan or "ABCDE1234F",
+                    "PAN": profile.pan,
                     "OptingNewTaxRegime": "Y" if is_new else "N"
                 },
                 "ITR1_IncomeDeductions": {
@@ -108,3 +139,4 @@ def export_itr_json(db: Session = Depends(get_db), current_user: User = Depends(
     }
     
     return itr_json
+

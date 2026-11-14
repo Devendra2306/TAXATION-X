@@ -9,6 +9,7 @@ from ..database import Base
 class FilingStatus(str, enum.Enum):
     DRAFT = "draft"
     PAID = "paid"
+    SUBMITTING = "submitting"
     SUBMITTED = "submitted"
     EVERIFY_PENDING = "everify_pending"
     VERIFIED = "verified"

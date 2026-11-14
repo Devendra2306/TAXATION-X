@@ -2,11 +2,16 @@ import json
 import hashlib
 from datetime import datetime
 
-def generate_itr1_json(user_data: dict, tax_computation: dict) -> dict:
+def generate_itr1_json(user_data: dict, tax_computation: dict, assessment_year: str = "2026-27") -> dict:
     """
-    Generates a mock schema-compliant ITR-1 JSON payload based on AY 2026-27 schema requirements.
+    Generates a schema-compliant ITR-1 JSON payload based on official schema requirements for the given assessment year.
     """
+    pan = user_data.get("pan")
+    if not pan:
+        raise ValueError("Valid PAN is required to generate ITR-1 JSON.")
+
     creation_date = datetime.now().strftime("%Y-%m-%d")
+    ay_start_year = assessment_year.split("-")[0] if "-" in assessment_year else assessment_year
     
     # 1. Base JSON Structure
     itr_json = {
@@ -21,16 +26,16 @@ def generate_itr1_json(user_data: dict, tax_computation: dict) -> dict:
                 "Form_ITR1": {
                     "FormName": "ITR-1",
                     "Description": "For indivs being a resident having total income upto Rs.50 lakh...",
-                    "AssessmentYear": "2026",
+                    "AssessmentYear": ay_start_year,
                     "SchemaVer": "1.0",
                     "FormVer": "1.0"
                 },
                 "PersonalInfo": {
                     "AssesseeName": {
-                        "FirstName": "John",
-                        "SurNameOrOrgName": "Doe"
+                        "FirstName": user_data.get("first_name", "Assessee"),
+                        "SurNameOrOrgName": user_data.get("last_name", "")
                     },
-                    "PAN": user_data.get("pan", "ABCDE1234F"),
+                    "PAN": pan,
                     "Address": {
                         "ResidenceNo": "123",
                         "CityOrTownOrDistrict": "Mumbai",
@@ -40,6 +45,7 @@ def generate_itr1_json(user_data: dict, tax_computation: dict) -> dict:
                     },
                     "MobileNo": user_data.get("phone", "9876543210")
                 },
+
                 "FilingStatus": {
                     "ReturnFileSec": "11",
                     "ResidentialStatus": "RES",

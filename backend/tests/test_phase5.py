@@ -196,7 +196,8 @@ def test_validate_itr1_schema_valid():
             "ITR1": {
                 "CreationInfo": {
                     "SWVersionNo": "1.0",
-                    "SWCreatedBy": "NexTax"
+                    "SWCreatedBy": "NexTax",
+                    "XMLCreationDate": "2025-05-01"
                 },
                 "Form_ITR1": {
                     "FormName": "ITR-1",

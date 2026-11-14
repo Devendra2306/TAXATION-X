@@ -9,7 +9,7 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 # Sandbox.co.in API Base URL
-ERI_API_BASE = "https://api.sandbox.co.in"
+ERI_API_BASE = settings.SANDBOX_BASE_URL
 ERI_API_KEY = settings.EXTERNAL_API_KEY
 ERI_API_SECRET = settings.EXTERNAL_API_SECRET
 
@@ -281,7 +281,7 @@ async def request_aadhaar_otp(pan_number: str) -> dict:
     async with httpx.AsyncClient(timeout=20) as client:
         try:
             response = await client.post(
-                f"{ERI_API_BASE}/tax/itr/generate-otp",
+                f"{ERI_API_BASE}{settings.SANDBOX_GENERATE_OTP_ENDPOINT}",
                 headers={
                     "Authorization": token,
                     "x-api-key": api_key,
@@ -361,7 +361,7 @@ async def fetch_prefill_data(pan_number: str, otp: str) -> dict:
     async with httpx.AsyncClient(timeout=30) as client:
         try:
             response = await client.post(
-                f"{ERI_API_BASE}/tax/itr/prefill",
+                f"{ERI_API_BASE}{settings.SANDBOX_PREFILL_ENDPOINT}",
                 headers={
                     "Authorization": token,
                     "x-api-key": api_key,
@@ -516,7 +516,7 @@ async def submit_itr(pan_number: str, itr_json_payload: dict) -> dict:
     async with httpx.AsyncClient(timeout=60) as client:
         try:
             response = await client.post(
-                f"{ERI_API_BASE}/tax/itr/submit",
+                f"{ERI_API_BASE}{settings.SANDBOX_SUBMIT_ENDPOINT}",
                 headers={
                     "Authorization": token,
                     "x-api-key": api_key,
@@ -604,7 +604,7 @@ async def everify_itr(pan_number: str, ack_number: str, otp: str) -> dict:
     async with httpx.AsyncClient(timeout=30) as client:
         try:
             response = await client.post(
-                f"{ERI_API_BASE}/tax/itr/e-verify",
+                f"{ERI_API_BASE}{settings.SANDBOX_EVERIFY_ENDPOINT}",
                 headers={
                     "Authorization": token,
                     "x-api-key": api_key,
@@ -721,16 +721,21 @@ def check_itr1_eligibility(
     return True, None
 
 
-def validate_itr1_schema(itr_data: Dict[str, Any]) -> list[str]:
+def validate_itr1_schema(itr_data: Dict[str, Any], expected_ay: Optional[str] = None) -> list[str]:
     """
-    Validates ITR-1 JSON data against the official ITD schema requirements:
-    - Root must contain 'ITR' -> 'ITR1'
-    - Form_ITR1 must specify FormName == 'ITR-1' and AssessmentYear
-    - PersonalInfo must have valid PAN matching ^[A-Z]{5}[0-9]{4}[A-Z]{1}$ and AssesseeName
-    - TotalIncome must be >= 0 and <= 50,00,000 (statutory limit for ITR-1 Sahaj)
-    - GrossSalary must be >= 0
-    - Tax computation sections must be present and non-negative
-    Returns a list of error strings; an empty list indicates validation success.
+    Validates ITR-1 JSON data against official Income Tax Department (CBDT) schema specifications:
+    - Root schema integrity: requires 'ITR' -> 'ITR1'
+    - CreationInfo: requires valid creation date format (YYYY-MM-DD), software identifiers
+    - Form_ITR1: FormName must be 'ITR-1', AssessmentYear must match expected AY start year
+    - PersonalInfo: PAN must strictly match ITD regex ^[A-Z]{5}[0-9]{4}[A-Z]{1}$, AssesseeName, regime ('Y'/'N')
+    - IncomeDeductions:
+        * GrossSalary >= 0
+        * Section 80C <= ₹1,50,000 (and must be 0 under new regime)
+        * TotalIncome <= ₹50,00,000 (statutory ITR-1 Sahaj eligibility ceiling)
+    - TaxComputation:
+        * TotalTaxPayable >= 0, TDSClaimed >= 0
+        * Mathematical reconciliation: TaxPayable vs RefundDue must match TotalTaxPayable - TDSClaimed
+    Returns an empty list if valid, or a list of diagnostic error strings if invalid.
     """
     errors = []
     if not isinstance(itr_data, dict):
@@ -744,34 +749,56 @@ def validate_itr1_schema(itr_data: Dict[str, Any]) -> list[str]:
     if not isinstance(itr1, dict):
         return ["Missing 'ITR1' element inside root 'ITR'."]
 
-    # Form_ITR1
+    # 1. CreationInfo Validation
+    creation_info = itr1.get("CreationInfo")
+    if not isinstance(creation_info, dict):
+        errors.append("Missing 'CreationInfo' section in ITR1.")
+    else:
+        if not creation_info.get("SWVersionNo"):
+            errors.append("Missing 'SWVersionNo' in CreationInfo.")
+        if not creation_info.get("SWCreatedBy"):
+            errors.append("Missing 'SWCreatedBy' in CreationInfo.")
+        c_date = creation_info.get("XMLCreationDate") or creation_info.get("JSONCreationDate")
+        if not c_date or not re.match(r"^\d{4}-\d{2}-\d{2}$", str(c_date)):
+            errors.append(f"Invalid or missing creation date '{c_date}' in CreationInfo; expected YYYY-MM-DD.")
+
+    # 2. Form_ITR1 Validation
     form_itr1 = itr1.get("Form_ITR1")
     if not isinstance(form_itr1, dict):
         errors.append("Missing 'Form_ITR1' section.")
     else:
         if form_itr1.get("FormName") != "ITR-1":
             errors.append(f"Invalid FormName '{form_itr1.get('FormName')}'; expected 'ITR-1'.")
-        if not form_itr1.get("AssessmentYear"):
-            errors.append("Missing 'AssessmentYear' in Form_ITR1.")
+        ay = str(form_itr1.get("AssessmentYear") or "")
+        if not ay or not re.match(r"^\d{4}$", ay):
+            errors.append(f"Invalid AssessmentYear '{ay}' in Form_ITR1; expected 4-digit start year (e.g. '2025').")
+        if expected_ay:
+            expected_start = expected_ay.split("-")[0] if "-" in expected_ay else expected_ay
+            if ay != expected_start:
+                errors.append(
+                    f"AssessmentYear mismatch in filing JSON: Form_ITR1 has '{ay}', "
+                    f"but submitted assessment year is '{expected_ay}' (expected '{expected_start}')."
+                )
 
-    # PersonalInfo
+    # 3. PersonalInfo Validation
     personal_info = itr1.get("PersonalInfo")
+    regime = "Y"
     if not isinstance(personal_info, dict):
         errors.append("Missing 'PersonalInfo' section.")
     else:
         pan = personal_info.get("PAN")
         if not pan or not re.match(r"^[A-Z]{5}[0-9]{4}[A-Z]{1}$", str(pan)):
-            errors.append(f"Invalid or missing PAN '{pan}' in PersonalInfo.")
+            errors.append(f"Invalid or missing PAN '{pan}' in PersonalInfo. Must match ^[A-Z]{5}[0-9]{4}[A-Z]{1}$.")
 
         name = personal_info.get("AssesseeName")
-        if not isinstance(name, dict) or not name.get("FirstName"):
-            errors.append("Missing or invalid 'AssesseeName.FirstName' in PersonalInfo.")
+        if not isinstance(name, dict) or not str(name.get("FirstName", "")).strip():
+            errors.append("Missing or empty 'AssesseeName.FirstName' in PersonalInfo.")
 
         regime = personal_info.get("OptingNewTaxRegime")
         if regime not in ("Y", "N"):
-            errors.append(f"Invalid 'OptingNewTaxRegime' value '{regime}'; expected 'Y' or 'N'.")
+            errors.append(f"Invalid 'OptingNewTaxRegime' value '{regime}'; must be 'Y' (New Regime) or 'N' (Old Regime).")
 
-    # IncomeDeductions
+    # 4. IncomeDeductions Validation
     inc = itr1.get("ITR1_IncomeDeductions")
     if not isinstance(inc, dict):
         errors.append("Missing 'ITR1_IncomeDeductions' section.")
@@ -787,11 +814,21 @@ def validate_itr1_schema(itr_data: Dict[str, Any]) -> list[str]:
             errors.append(f"TotalIncome cannot be negative: {total_income}.")
         elif total_income > 5000000:
             errors.append(
-                f"TotalIncome ₹{total_income:,.0f} exceeds the ₹50,00,000 threshold for ITR-1 (Sahaj). "
+                f"TotalIncome ₹{total_income:,.0f} exceeds the statutory ₹50,00,000 threshold for ITR-1 (Sahaj). "
                 "Assessee must file using ITR-2."
             )
 
-    # TaxComputation
+        # Chapter VI-A deductions check
+        chap_via = inc.get("UsrDeductUndChapVIA", {})
+        if isinstance(chap_via, dict):
+            sec_80c = chap_via.get("Section80C", 0)
+            if isinstance(sec_80c, (int, float)):
+                if regime == "Y" and sec_80c > 0:
+                    errors.append(f"Section 80C deductions (₹{sec_80c:,.0f}) are not allowable under the New Tax Regime (Section 115BAC).")
+                elif regime == "N" and sec_80c > 150000:
+                    errors.append(f"Section 80C deductions (₹{sec_80c:,.0f}) exceed the statutory ₹1,50,000 cap.")
+
+    # 5. TaxComputation & Mathematical Reconciliation Validation
     tax_comp = itr1.get("ITR1_TaxComputation")
     if not isinstance(tax_comp, dict):
         errors.append("Missing 'ITR1_TaxComputation' section.")
@@ -804,4 +841,64 @@ def validate_itr1_schema(itr_data: Dict[str, Any]) -> list[str]:
         if tds is None or not isinstance(tds, (int, float)) or tds < 0:
             errors.append(f"Invalid TDSClaimed '{tds}'; must be a non-negative number.")
 
+        refund_due = tax_comp.get("RefundDue")
+        balance_payable = tax_comp.get("TaxPayable")
+        if refund_due is not None and balance_payable is not None:
+            if isinstance(tax_payable, (int, float)) and isinstance(tds, (int, float)):
+                expected_balance = max(0, tax_payable - tds)
+                expected_refund = max(0, tds - tax_payable)
+                if abs(balance_payable - expected_balance) > 1.0:
+                    errors.append(f"TaxPayable (₹{balance_payable}) does not reconcile with TotalTaxPayable (₹{tax_payable}) - TDSClaimed (₹{tds}). Expected ₹{expected_balance}.")
+                if abs(refund_due - expected_refund) > 1.0:
+                    errors.append(f"RefundDue (₹{refund_due}) does not reconcile with TDSClaimed (₹{tds}) - TotalTaxPayable (₹{tax_payable}). Expected ₹{expected_refund}.")
+
     return errors
+
+async def check_upstream_filing_status(pan_number: str, assessment_year: str) -> dict:
+    """
+    Queries Sandbox / Income Tax Department to check if an ITR filing already exists
+    for this PAN and Assessment Year. Used prior to retry attempts after a network timeout.
+    """
+    token = await get_sandbox_token()
+    api_key = settings.EXTERNAL_API_KEY
+    endpoint = settings.SANDBOX_STATUS_ENDPOINT
+    ay_start_year = assessment_year.split("-")[0] if "-" in assessment_year else assessment_year
+
+    async with httpx.AsyncClient(timeout=20) as client:
+        try:
+            response = await client.get(
+                f"{ERI_API_BASE}{endpoint}",
+                headers={
+                    "Authorization": token,
+                    "x-api-key": api_key,
+                    "x-api-version": "1.0.0",
+                    "accept": "application/json"
+                },
+                params={"pan": pan_number, "assessment_year": ay_start_year}
+            )
+
+            if response.status_code == 200:
+                data = response.json().get("data", {})
+                return {
+                    "exists": True,
+                    "status": data.get("status", "SUBMITTED"),
+                    "ack_number": data.get("ack_number"),
+                    "date": data.get("filed_date")
+                }
+            elif response.status_code == 404:
+                return {"exists": False, "status": "NOT_FOUND"}
+            elif response.status_code == 401:
+                if settings.DEMO_MODE:
+                    return {"exists": False, "status": "DEMO_NOT_FOUND"}
+                raise HTTPException(status_code=502, detail="Sandbox authentication failed during status verification")
+            elif response.status_code == 403:
+                if settings.DEMO_MODE:
+                    return {"exists": False, "status": "DEMO_NOT_FOUND"}
+                raise HTTPException(status_code=502, detail="Status verification endpoint not enabled on this Sandbox plan")
+            else:
+                return {"exists": False, "status": "UNKNOWN"}
+        except HTTPException:
+            raise
+        except httpx.RequestError as e:
+            logger.warning(f"Could not check upstream filing status: {e}")
+            return {"exists": False, "status": "NETWORK_ERROR", "error": str(e)}
