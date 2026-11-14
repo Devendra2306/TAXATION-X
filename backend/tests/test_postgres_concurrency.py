@@ -26,9 +26,11 @@ TEST_POSTGRES_URL = os.getenv("TEST_POSTGRES_URL")
 def test_postgres_concurrent_first_submits_only_call_sandbox_once():
     """
     Live PostgreSQL Concurrency Test:
-    Tests that N (8) simultaneous first-time submit requests for the same user and assessment year
-    serialize correctly via PostgreSQL UniqueConstraint and row-level locking (SELECT ... FOR UPDATE),
-    resulting in EXACTLY ONE upstream Sandbox call and ONE Filing row in PostgreSQL.
+    Locking is designed for PostgreSQL via SELECT FOR UPDATE and database-level UniqueConstraint.
+    Standard test suite runs against SQLite (where SELECT FOR UPDATE is ignored).
+    This test verifies that N (8) simultaneous first-time submit requests for the same user and
+    assessment year serialize correctly on PostgreSQL, resulting in EXACTLY ONE upstream Sandbox call
+    and ONE Filing row in PostgreSQL. Available locally and in CI via TEST_POSTGRES_URL.
     """
     engine = create_engine(TEST_POSTGRES_URL, pool_size=10, max_overflow=5)
     TestingSession = sessionmaker(autocommit=False, autoflush=False, bind=engine)

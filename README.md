@@ -155,18 +155,51 @@ cd backend
 python -m pytest tests -q
 ```
 
-### Run Live PostgreSQL Multi-Worker Concurrency Test
-The backend enforces double-submission prevention through database-level `UniqueConstraint("user_id", "assessment_year")` and PostgreSQL row-level locking (`SELECT ... FOR UPDATE`). To run the live 8-worker concurrent race test against PostgreSQL:
+### Running Concurrency Tests (PostgreSQL)
+
+Multi-worker locking is designed for PostgreSQL using `SELECT ... FOR UPDATE` and a database-level `UniqueConstraint("user_id", "assessment_year")`. Standard test runs execute against SQLite in-memory, where `SELECT FOR UPDATE` is ignored and threading behavior differs from a production multi-worker deployment.
+
+To verify the live 8-worker race condition test against an actual PostgreSQL database:
 
 ```bash
-# 1. Start the PostgreSQL service via docker-compose
-docker compose up -d postgres
+# 1. Start a temporary PostgreSQL test container on port 5433
+docker run -d --name pg-test -e POSTGRES_PASSWORD=test -e POSTGRES_DB=test -p 5433:5432 postgres:16-alpine
 
 # 2. Run the PostgreSQL concurrency test with the test database URL
 cd backend
-TEST_POSTGRES_URL="postgresql://postgres:postgrespassword@localhost:5432/ofs_tax" python -m pytest tests/test_postgres_concurrency.py -v
+TEST_POSTGRES_URL="postgresql://postgres:test@localhost:5433/test" python -m pytest tests/test_postgres_concurrency.py -v
+
+# 3. Stop and clean up the container
+docker rm -f pg-test
 ```
-*(Note: When `TEST_POSTGRES_URL` is unset, the test is automatically skipped so standard local test runs remain lightweight.)*
+*(Note: When `TEST_POSTGRES_URL` is unset, this test is skipped automatically so local and offline test runs remain fast and dependency-free.)*
+
+#### Continuous Integration (CI)
+When setting up CI (e.g. GitHub Actions in `.github/workflows/ci.yml`), configure a PostgreSQL service container:
+
+```yaml
+services:
+  postgres:
+    image: postgres:16-alpine
+    env:
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: test
+    ports:
+      - 5433:5432
+    options: >-
+      --health-cmd pg_isready
+      --health-interval 10s
+      --health-timeout 5s
+      --health-retries 5
+
+steps:
+  - name: Run PostgreSQL Concurrency Test
+    env:
+      TEST_POSTGRES_URL: postgresql://postgres:test@localhost:5433/test
+    run: |
+      cd backend
+      python -m pytest tests/test_postgres_concurrency.py -v
+```
 
 ---
 
