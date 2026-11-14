@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
+import { CURRENT_ASSESSMENT_YEAR } from '@/lib/assessmentYear';
 
 export default function ExportPage() {
   const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloading' | 'done'>('idle');
@@ -74,7 +75,7 @@ export default function ExportPage() {
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       if (token) {
-        fetch(`${API_URL}/api/itr/status`, {
+        fetch(`${API_URL}/api/itr/status?assessment_year=${CURRENT_ASSESSMENT_YEAR}`, {
           headers: { Authorization: `Bearer ${token}` }
         })
           .then((res) => (res.ok ? res.json() : null))
@@ -134,7 +135,7 @@ export default function ExportPage() {
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          assessment_year: '2025-26',
+          assessment_year: CURRENT_ASSESSMENT_YEAR,
           tax_computation_id: 1,
           bank_account_id: 'PRIMARY_REFUND_ACC'
         })
@@ -215,7 +216,7 @@ export default function ExportPage() {
           otp: everifyOtp.trim(),
           acknowledgement_number: ackDetails?.ack_number,
           pan_number: pan || undefined,
-          assessment_year: '2025-26'
+          assessment_year: CURRENT_ASSESSMENT_YEAR
         })
       });
 
@@ -275,7 +276,7 @@ export default function ExportPage() {
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-      const res = await fetch(`${API_URL}/api/profile/export-json`, {
+      const res = await fetch(`${API_URL}/api/profile/export-json?assessment_year=${CURRENT_ASSESSMENT_YEAR}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -290,7 +291,7 @@ export default function ExportPage() {
       const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(jsonPayload, null, 2));
       const downloadAnchorNode = document.createElement('a');
       downloadAnchorNode.setAttribute('href', dataStr);
-      downloadAnchorNode.setAttribute('download', `ITR-1_AY2025-26_${pan || 'TAX'}.json`);
+      downloadAnchorNode.setAttribute('download', `ITR-1_AY${CURRENT_ASSESSMENT_YEAR}_${pan || 'TAX'}.json`);
       document.body.appendChild(downloadAnchorNode);
       downloadAnchorNode.click();
       downloadAnchorNode.remove();

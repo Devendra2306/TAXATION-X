@@ -3,6 +3,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 import json
 from ..database import Base
+from ..core.assessment_year import current_assessment_year
 
 
 class TaxComputation(Base):
@@ -10,7 +11,7 @@ class TaxComputation(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    assessment_year = Column(String, nullable=False, default="2025-26")
+    assessment_year = Column(String, nullable=False, default=current_assessment_year)
 
     # Old Regime
     old_taxable_income = Column(Float, default=0.0)

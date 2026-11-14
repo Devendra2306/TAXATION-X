@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Dict, Any, Optional
 from datetime import datetime, date
@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models.user import User
 from app.models.tax_profile import TaxProfile
 from app.routers.auth import get_current_user
+from app.core.assessment_year import validate_assessment_year
 
 router = APIRouter()
 
@@ -50,10 +51,15 @@ def save_profile(data: Dict[str, Any], db: Session = Depends(get_db), current_us
 
 @router.get("/export-json")
 def export_itr_json(
-    assessment_year: str = "2025-26",
+    assessment_year: str = Query(..., description="Assessment year in YYYY-YY format (e.g. '2026-27')"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    try:
+        assessment_year = validate_assessment_year(assessment_year)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
     profile = db.query(TaxProfile).filter(TaxProfile.user_id == current_user.id).first()
     
     if not profile:

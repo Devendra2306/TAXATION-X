@@ -4,6 +4,7 @@ from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Uniq
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from ..database import Base
+from ..core.assessment_year import current_assessment_year
 
 
 class FilingStatus(str, enum.Enum):
@@ -25,7 +26,7 @@ class Filing(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     tax_computation_id = Column(Integer, ForeignKey("tax_computations.id"), nullable=True)
-    assessment_year = Column(String, nullable=False, default="2025-26")
+    assessment_year = Column(String, nullable=False, default=current_assessment_year)
     status = Column(String, default=FilingStatus.DRAFT.value, nullable=False)
     ack_number = Column(String, nullable=True, index=True)
     submitted_at = Column(DateTime(timezone=True), nullable=True)

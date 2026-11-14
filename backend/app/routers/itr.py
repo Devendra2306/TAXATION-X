@@ -1,7 +1,7 @@
 import threading
 from datetime import date, datetime, timezone, timedelta
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from sqlalchemy.orm import Session
 
 from app.schemas.itr import (
@@ -20,6 +20,7 @@ from app.models.user import User
 from app.models.filing import Filing, FilingStatus
 from app.database import get_db
 from app.main_limiter import limiter
+from app.core.assessment_year import validate_assessment_year, current_assessment_year
 
 router = APIRouter(prefix="/api/itr", tags=["ITR E-Filing"])
 
@@ -160,15 +161,26 @@ async def fetch_prefill(request: OTPVerify, current_user: User = Depends(get_cur
     return data
 
 
+@router.get("/current-ay")
+def get_current_ay():
+    """Returns the statutory assessment year for the current date."""
+    return {"assessment_year": current_assessment_year()}
+
+
 @router.get("/status", response_model=ITRStatusResponse)
 async def get_filing_status(
-    assessment_year: str = "2025-26",
+    assessment_year: str = Query(..., description="Assessment Year in YYYY-YY format, e.g. '2026-27'"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Returns the current filing status, acknowledgement number, and submission details.
     """
+    try:
+        assessment_year = validate_assessment_year(assessment_year)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
     from app.models.tax_profile import TaxProfile
     profile = db.query(TaxProfile).filter(TaxProfile.user_id == current_user.id).first()
     pan = profile.pan if profile else None

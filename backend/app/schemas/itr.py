@@ -1,5 +1,6 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Any
+from app.core.assessment_year import validate_assessment_year
 
 class OTPRequest(BaseModel):
     pan_number: str = Field(..., description="PAN number of the taxpayer")
@@ -12,13 +13,18 @@ class OTPVerify(BaseModel):
     otp: str
 
 class FilingRequest(BaseModel):
-    assessment_year: str = "2025-26"
+    assessment_year: str = Field(..., description="Assessment year in YYYY-YY format (e.g. '2026-27')")
     tax_computation_id: int
     bank_account_id: Optional[str] = None
+
+    @field_validator("assessment_year")
+    @classmethod
+    def check_assessment_year(cls, v: str) -> str:
+        return validate_assessment_year(v)
     
 class ITRStatusResponse(BaseModel):
     pan_number: Optional[str] = None
-    assessment_year: str = "2025-26"
+    assessment_year: str = Field(..., description="Assessment year in YYYY-YY format (e.g. '2026-27')")
     status: str
     acknowledgement_number: Optional[str] = None
     date_of_filing: Optional[str] = None
@@ -30,7 +36,12 @@ class EVerifyRequest(BaseModel):
     otp: str = Field(..., description="6-digit Aadhaar OTP")
     pan_number: Optional[str] = None
     acknowledgement_number: Optional[str] = None
-    assessment_year: str = "2025-26"
+    assessment_year: str = Field(..., description="Assessment year in YYYY-YY format (e.g. '2026-27')")
+
+    @field_validator("assessment_year")
+    @classmethod
+    def check_assessment_year(cls, v: str) -> str:
+        return validate_assessment_year(v)
 
 class PrefillDataResponse(BaseModel):
     pan: str
