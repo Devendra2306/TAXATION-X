@@ -5,3 +5,4 @@ from .tax_profile import TaxProfile
 from .tax_computation import TaxComputation
 from .filing import Filing
 from .payment import Payment
+from .api_usage import ApiUsageLog

@@ -37,6 +37,24 @@ class PrefillDataResponse(BaseModel):
     gross_salary: float = 0
     deductions_80c: float = 0
     tds_deducted: float = 0
+    interest_income: float = 0
+    dividend_income: float = 0
+    capital_gains: float = 0
+    business_income: float = 0
+    section_80d: float = 0
     employer_name: str = ""
+    itr1_eligible: bool = True
+    unsupported_reason: Optional[str] = None
     simulated: bool = False
     raw_sandbox_data: Optional[Dict[str, Any]] = None
+
+class UsageStatsResponse(BaseModel):
+    total_calls: int
+    live_calls: int
+    simulated_calls: int
+    total_estimated_cost_inr: float
+    unit_cost_estimate_inr: float = 0.90
+    calls_by_endpoint: Dict[str, int]
+    user_calls: int
+    user_estimated_cost_inr: float
+

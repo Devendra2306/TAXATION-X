@@ -13,9 +13,49 @@ ERI_API_BASE = "https://api.sandbox.co.in"
 ERI_API_KEY = settings.EXTERNAL_API_KEY
 ERI_API_SECRET = settings.EXTERNAL_API_SECRET
 
-# Simple in-memory token cache (token is valid for 24 hours)
+# Shared Redis & In-Memory Token Cache
+REDIS_TOKEN_KEY = "sandbox_eri:access_token"
 _cached_token: Optional[str] = None
 _cached_token_expiry: float = 0.0
+_redis_client = None
+_redis_checked = False
+
+
+def _get_redis():
+    global _redis_client, _redis_checked
+    if _redis_checked and _redis_client is None:
+        return None
+    if _redis_client is None:
+        try:
+            import redis
+            client = redis.Redis.from_url(
+                settings.REDIS_URL,
+                decode_responses=True,
+                socket_connect_timeout=1.0,
+                socket_timeout=1.0
+            )
+            client.ping()
+            _redis_client = client
+            _redis_checked = True
+            logger.info("Connected to shared Redis token cache.")
+        except Exception as e:
+            logger.debug(f"Shared Redis cache unavailable ({e}). Using in-memory token cache.")
+            _redis_client = None
+            _redis_checked = True
+    return _redis_client
+
+
+def clear_token_cache():
+    """Clears both in-memory and Redis token cache (for testing / rotation)."""
+    global _cached_token, _cached_token_expiry
+    _cached_token = None
+    _cached_token_expiry = 0.0
+    r = _get_redis()
+    if r:
+        try:
+            r.delete(REDIS_TOKEN_KEY)
+        except Exception:
+            pass
 
 
 def _is_credits_exhausted(message: str) -> bool:
@@ -38,6 +78,17 @@ async def get_sandbox_token() -> str:
     import time
     global _cached_token, _cached_token_expiry
 
+    # 1. Check shared Redis cache
+    r = _get_redis()
+    if r:
+        try:
+            redis_token = r.get(REDIS_TOKEN_KEY)
+            if redis_token:
+                return redis_token
+        except Exception as e:
+            logger.debug(f"Redis get token error: {e}")
+
+    # 2. Check in-memory cache
     if _cached_token and time.time() < _cached_token_expiry:
         return _cached_token
 
@@ -69,6 +120,11 @@ async def get_sandbox_token() -> str:
                     raise HTTPException(status_code=500, detail="Sandbox Auth response missing access_token.")
                 _cached_token = token
                 _cached_token_expiry = time.time() + (23 * 3600)  # cache for 23h
+                if r:
+                    try:
+                        r.set(REDIS_TOKEN_KEY, token, ex=23 * 3600)
+                    except Exception as e:
+                        logger.debug(f"Redis set token error: {e}")
                 logger.info("Sandbox API token refreshed successfully.")
                 return token
             elif response.status_code == 401:
@@ -325,13 +381,40 @@ async def fetch_prefill_data(pan_number: str, otp: str) -> dict:
                 income_details = data.get("income_details", {})
                 deduction_details = data.get("deductions", {})
                 taxes_paid = data.get("taxes_paid", {})
+                other_sources = data.get("other_sources", {})
+                ais_data = data.get("ais", {}) or data.get("ais_data", {})
+
+                gross_salary = float(income_details.get("salary_income", income_details.get("gross_salary", 0)) or 0)
+                deductions_80c = float(deduction_details.get("section_80c", 0) or 0)
+                section_80d = float(deduction_details.get("section_80d", 0) or 0)
+                tds_deducted = float(taxes_paid.get("total_tds", 0) or 0)
+                interest_income = float(income_details.get("interest_income", other_sources.get("interest_income", ais_data.get("interest_income", 0))) or 0)
+                dividend_income = float(income_details.get("dividend_income", other_sources.get("dividend_income", ais_data.get("dividend_income", 0))) or 0)
+                capital_gains = float(income_details.get("capital_gains", data.get("capital_gains", ais_data.get("capital_gains", 0))) or 0)
+                business_income = float(income_details.get("business_income", data.get("business_income", 0)) or 0)
+                employer_name = income_details.get("employer_name", "Fetched from ITD")
+
+                itr1_eligible, unsupported_reason = check_itr1_eligibility(
+                    gross_salary=gross_salary,
+                    interest_income=interest_income,
+                    dividend_income=dividend_income,
+                    capital_gains=capital_gains,
+                    business_income=business_income
+                )
 
                 return {
                     "pan": pan_number,
-                    "gross_salary": income_details.get("salary_income", 0),
-                    "deductions_80c": deduction_details.get("section_80c", 0),
-                    "tds_deducted": taxes_paid.get("total_tds", 0),
-                    "employer_name": income_details.get("employer_name", "Fetched from ITD"),
+                    "gross_salary": gross_salary,
+                    "deductions_80c": deductions_80c,
+                    "section_80d": section_80d,
+                    "tds_deducted": tds_deducted,
+                    "interest_income": interest_income,
+                    "dividend_income": dividend_income,
+                    "capital_gains": capital_gains,
+                    "business_income": business_income,
+                    "employer_name": employer_name,
+                    "itr1_eligible": itr1_eligible,
+                    "unsupported_reason": unsupported_reason,
                     "simulated": False,
                     "raw_sandbox_data": data
                 }
@@ -339,10 +422,17 @@ async def fetch_prefill_data(pan_number: str, otp: str) -> dict:
                 if settings.DEMO_MODE:
                     return {
                         "pan": pan_number,
-                        "gross_salary": 1200000,
-                        "deductions_80c": 150000,
-                        "tds_deducted": 85000,
+                        "gross_salary": 1200000.0,
+                        "deductions_80c": 150000.0,
+                        "section_80d": 25000.0,
+                        "tds_deducted": 85000.0,
+                        "interest_income": 12000.0,
+                        "dividend_income": 3000.0,
+                        "capital_gains": 0.0,
+                        "business_income": 0.0,
                         "employer_name": "Demo Employer Pvt. Ltd.",
+                        "itr1_eligible": True,
+                        "unsupported_reason": None,
                         "simulated": True,
                         "raw_sandbox_data": {"simulated": True, "note": "Demo mode active"}
                     }
@@ -353,10 +443,17 @@ async def fetch_prefill_data(pan_number: str, otp: str) -> dict:
                     if settings.DEMO_MODE:
                         return {
                             "pan": pan_number,
-                            "gross_salary": 1200000,
-                            "deductions_80c": 150000,
-                            "tds_deducted": 85000,
+                            "gross_salary": 1200000.0,
+                            "deductions_80c": 150000.0,
+                            "section_80d": 25000.0,
+                            "tds_deducted": 85000.0,
+                            "interest_income": 12000.0,
+                            "dividend_income": 3000.0,
+                            "capital_gains": 0.0,
+                            "business_income": 0.0,
                             "employer_name": "Demo Employer Pvt. Ltd.",
+                            "itr1_eligible": True,
+                            "unsupported_reason": None,
                             "simulated": True,
                             "raw_sandbox_data": {"simulated": True, "reason": "credits_exhausted"}
                         }
@@ -364,10 +461,17 @@ async def fetch_prefill_data(pan_number: str, otp: str) -> dict:
                 if settings.DEMO_MODE:
                     return {
                         "pan": pan_number,
-                        "gross_salary": 1200000,
-                        "deductions_80c": 150000,
-                        "tds_deducted": 85000,
+                        "gross_salary": 1200000.0,
+                        "deductions_80c": 150000.0,
+                        "section_80d": 25000.0,
+                        "tds_deducted": 85000.0,
+                        "interest_income": 12000.0,
+                        "dividend_income": 3000.0,
+                        "capital_gains": 0.0,
+                        "business_income": 0.0,
                         "employer_name": "Demo Employer Pvt. Ltd.",
+                        "itr1_eligible": True,
+                        "unsupported_reason": None,
                         "simulated": True,
                         "raw_sandbox_data": {"simulated": True, "note": "API plan not subscribed"}
                     }
@@ -377,10 +481,17 @@ async def fetch_prefill_data(pan_number: str, otp: str) -> dict:
                     logger.warning(f"ITR Prefill API not available ({response.status_code}). Returning demo data because DEMO_MODE=True.")
                     return {
                         "pan": pan_number,
-                        "gross_salary": 1200000,
-                        "deductions_80c": 150000,
-                        "tds_deducted": 85000,
+                        "gross_salary": 1200000.0,
+                        "deductions_80c": 150000.0,
+                        "section_80d": 25000.0,
+                        "tds_deducted": 85000.0,
+                        "interest_income": 12000.0,
+                        "dividend_income": 3000.0,
+                        "capital_gains": 0.0,
+                        "business_income": 0.0,
                         "employer_name": "Demo Employer Pvt. Ltd.",
+                        "itr1_eligible": True,
+                        "unsupported_reason": None,
                         "simulated": True,
                         "raw_sandbox_data": {"simulated": True, "note": "API plan not subscribed"}
                     }
@@ -572,3 +683,125 @@ async def everify_itr(pan_number: str, ack_number: str, otp: str) -> dict:
         except httpx.RequestError as e:
             logger.error(f"ITR e-verify connection error: {e}")
             raise HTTPException(status_code=503, detail="Could not connect to e-verification service.")
+
+
+def check_itr1_eligibility(
+    gross_salary: float = 0.0,
+    interest_income: float = 0.0,
+    dividend_income: float = 0.0,
+    capital_gains: float = 0.0,
+    business_income: float = 0.0
+) -> tuple[bool, Optional[str]]:
+    """
+    Evaluates whether the income profile satisfies statutory eligibility for ITR-1 (Sahaj).
+    ITR-1 is restricted to resident individuals with total income up to ₹50 Lakhs.
+    Capital gains, business/professional income, and income > ₹50L are not supported.
+    """
+    total_income = gross_salary + interest_income + dividend_income + capital_gains + business_income
+    reasons = []
+
+    if total_income > 5000000:
+        reasons.append(
+            f"Total income (₹{total_income:,.0f}) exceeds ₹50 Lakh statutory limit for ITR-1 (Sahaj). "
+            "Assessee must file using ITR-2."
+        )
+    if capital_gains > 0:
+        reasons.append(
+            f"Capital gains of ₹{capital_gains:,.0f} detected. "
+            "ITR-1 does not support capital gains; assessee must file using ITR-2."
+        )
+    if business_income > 0:
+        reasons.append(
+            f"Business/professional income of ₹{business_income:,.0f} detected. "
+            "ITR-1 does not support business profits; assessee must file using ITR-3 or ITR-4."
+        )
+
+    if reasons:
+        return False, "; ".join(reasons)
+    return True, None
+
+
+def validate_itr1_schema(itr_data: Dict[str, Any]) -> list[str]:
+    """
+    Validates ITR-1 JSON data against the official ITD schema requirements:
+    - Root must contain 'ITR' -> 'ITR1'
+    - Form_ITR1 must specify FormName == 'ITR-1' and AssessmentYear
+    - PersonalInfo must have valid PAN matching ^[A-Z]{5}[0-9]{4}[A-Z]{1}$ and AssesseeName
+    - TotalIncome must be >= 0 and <= 50,00,000 (statutory limit for ITR-1 Sahaj)
+    - GrossSalary must be >= 0
+    - Tax computation sections must be present and non-negative
+    Returns a list of error strings; an empty list indicates validation success.
+    """
+    errors = []
+    if not isinstance(itr_data, dict):
+        return ["ITR payload must be a JSON object."]
+
+    itr = itr_data.get("ITR")
+    if not isinstance(itr, dict):
+        return ["Missing root 'ITR' element in payload."]
+
+    itr1 = itr.get("ITR1")
+    if not isinstance(itr1, dict):
+        return ["Missing 'ITR1' element inside root 'ITR'."]
+
+    # Form_ITR1
+    form_itr1 = itr1.get("Form_ITR1")
+    if not isinstance(form_itr1, dict):
+        errors.append("Missing 'Form_ITR1' section.")
+    else:
+        if form_itr1.get("FormName") != "ITR-1":
+            errors.append(f"Invalid FormName '{form_itr1.get('FormName')}'; expected 'ITR-1'.")
+        if not form_itr1.get("AssessmentYear"):
+            errors.append("Missing 'AssessmentYear' in Form_ITR1.")
+
+    # PersonalInfo
+    personal_info = itr1.get("PersonalInfo")
+    if not isinstance(personal_info, dict):
+        errors.append("Missing 'PersonalInfo' section.")
+    else:
+        pan = personal_info.get("PAN")
+        if not pan or not re.match(r"^[A-Z]{5}[0-9]{4}[A-Z]{1}$", str(pan)):
+            errors.append(f"Invalid or missing PAN '{pan}' in PersonalInfo.")
+
+        name = personal_info.get("AssesseeName")
+        if not isinstance(name, dict) or not name.get("FirstName"):
+            errors.append("Missing or invalid 'AssesseeName.FirstName' in PersonalInfo.")
+
+        regime = personal_info.get("OptingNewTaxRegime")
+        if regime not in ("Y", "N"):
+            errors.append(f"Invalid 'OptingNewTaxRegime' value '{regime}'; expected 'Y' or 'N'.")
+
+    # IncomeDeductions
+    inc = itr1.get("ITR1_IncomeDeductions")
+    if not isinstance(inc, dict):
+        errors.append("Missing 'ITR1_IncomeDeductions' section.")
+    else:
+        gross_salary = inc.get("GrossSalary")
+        if gross_salary is None or not isinstance(gross_salary, (int, float)) or gross_salary < 0:
+            errors.append(f"Invalid GrossSalary '{gross_salary}'; must be a non-negative number.")
+
+        total_income = inc.get("TotalIncome")
+        if total_income is None or not isinstance(total_income, (int, float)):
+            errors.append("Missing or invalid 'TotalIncome' in ITR1_IncomeDeductions.")
+        elif total_income < 0:
+            errors.append(f"TotalIncome cannot be negative: {total_income}.")
+        elif total_income > 5000000:
+            errors.append(
+                f"TotalIncome ₹{total_income:,.0f} exceeds the ₹50,00,000 threshold for ITR-1 (Sahaj). "
+                "Assessee must file using ITR-2."
+            )
+
+    # TaxComputation
+    tax_comp = itr1.get("ITR1_TaxComputation")
+    if not isinstance(tax_comp, dict):
+        errors.append("Missing 'ITR1_TaxComputation' section.")
+    else:
+        tax_payable = tax_comp.get("TotalTaxPayable")
+        if tax_payable is None or not isinstance(tax_payable, (int, float)) or tax_payable < 0:
+            errors.append(f"Invalid TotalTaxPayable '{tax_payable}'; must be a non-negative number.")
+
+        tds = tax_comp.get("TDSClaimed")
+        if tds is None or not isinstance(tds, (int, float)) or tds < 0:
+            errors.append(f"Invalid TDSClaimed '{tds}'; must be a non-negative number.")
+
+    return errors

@@ -10,8 +10,10 @@ from app.schemas.itr import (
     FilingRequest,
     PrefillDataResponse,
     ITRStatusResponse,
-    EVerifyRequest
+    EVerifyRequest,
+    UsageStatsResponse
 )
+from app.models.api_usage import ApiUsageLog
 from app.services import eri_service
 from app.routers.auth import get_current_user
 from app.models.user import User
@@ -45,31 +47,80 @@ def reset_user_otp_count_for_testing():
         _user_daily_otp_count.clear()
 
 
+def log_sandbox_usage(
+    db: Session,
+    endpoint: str,
+    status_code: int,
+    simulated: bool,
+    user_id: Optional[int] = None,
+    unit_cost: float = 0.90
+) -> None:
+    """
+    Records an API call to track billable spend against the ₹0.90/call benchmark.
+    Simulated calls carry an estimated cost of ₹0.00, while live calls carry ₹0.90.
+    """
+    try:
+        cost = 0.0 if simulated else unit_cost
+        entry = ApiUsageLog(
+            user_id=user_id,
+            endpoint=endpoint,
+            status_code=status_code,
+            simulated=simulated,
+            estimated_cost_inr=cost
+        )
+        db.add(entry)
+        db.commit()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
 @router.post("/verify-pan")
-async def verify_pan(request: OTPRequest, current_user: User = Depends(get_current_user)):
+async def verify_pan(
+    request: OTPRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
     Verify PAN using Sandbox KYC API.
     Requires pan_number, and optionally name + dob for full verification.
     """
-    result = await eri_service.verify_pan_number(
-        pan_number=request.pan_number,
-        name=request.name or "Unknown",
-        dob=request.dob or "01/01/1990"
-    )
-    return result
+    try:
+        result = await eri_service.verify_pan_number(
+            pan_number=request.pan_number,
+            name=request.name or "Unknown",
+            dob=request.dob or "01/01/1990"
+        )
+        log_sandbox_usage(db, "/kyc/pan", 200, result.get("simulated", False), current_user.id)
+        return result
+    except HTTPException as exc:
+        log_sandbox_usage(db, "/kyc/pan", exc.status_code, False, current_user.id)
+        raise exc
 
 
 @router.post("/generate-otp")
 @limiter.limit("3/minute")
-async def generate_otp(request: Request, otp_request: OTPRequest, current_user: User = Depends(get_current_user)):
+async def generate_otp(
+    request: Request,
+    otp_request: OTPRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
     Trigger Aadhaar/ITD OTP to fetch prefill data or e-verify.
     Rate limited to 3 attempts per minute to prevent OTP flooding,
     and capped at 5 requests per user per day.
     """
     check_and_increment_user_otp(current_user.id)
-    result = await eri_service.request_aadhaar_otp(otp_request.pan_number)
-    return result
+    try:
+        result = await eri_service.request_aadhaar_otp(otp_request.pan_number)
+        log_sandbox_usage(db, "/tax/itr/generate-otp", 200, result.get("simulated", False), current_user.id)
+        return result
+    except HTTPException as exc:
+        log_sandbox_usage(db, "/tax/itr/generate-otp", exc.status_code, False, current_user.id)
+        raise exc
 
 
 @router.post("/prefill", response_model=PrefillDataResponse)
@@ -89,10 +140,13 @@ async def fetch_prefill(request: OTPVerify, current_user: User = Depends(get_cur
     profile.gross_salary = data.get("gross_salary", 0)
     profile.deductions_80c = data.get("deductions_80c", 0)
     profile.tds_deducted = data.get("tds_deducted", 0)
+    profile.capital_gains = data.get("capital_gains", 0)
+    profile.other_income = (data.get("interest_income", 0) or 0) + (data.get("dividend_income", 0) or 0)
     profile.pan = data.get("pan", "")
     profile.employer_name = data.get("employer_name", "")
     
     db.commit()
+    log_sandbox_usage(db, "/tax/itr/prefill", 200, data.get("simulated", False), current_user.id)
     
     return data
 
@@ -197,13 +251,33 @@ async def submit_tax_return(request: FilingRequest, current_user: User = Depends
             detail=f"Filing cannot be submitted in '{filing.status}' status."
         )
 
-    # 4. Generate the official ITR schema JSON payload
+    # 4. Check ITR-1 statutory eligibility before proceeding
+    total_income = float(profile.gross_salary or 0) + float(profile.other_income or 0) + float(profile.capital_gains or 0)
+    if (profile.capital_gains or 0) > 0:
+        raise HTTPException(
+            status_code=422,
+            detail="ITR-1 is not applicable: Capital gains detected. Assessee must file using ITR-2."
+        )
+    if total_income > 5000000:
+        raise HTTPException(
+            status_code=422,
+            detail=f"ITR-1 is not applicable: Total income (₹{total_income:,.0f}) exceeds the ₹50 Lakh threshold. Assessee must file using ITR-2."
+        )
+
+    # 5. Generate and validate the official ITR schema JSON payload
     itr_json_payload = export_itr_json(db=db, current_user=current_user)
+    validation_errors = eri_service.validate_itr1_schema(itr_json_payload)
+    if validation_errors:
+        raise HTTPException(
+            status_code=422,
+            detail=f"ITR JSON schema validation failed: {'; '.join(validation_errors)}"
+        )
+
     filing.set_itr_data(itr_json_payload)
     if request.tax_computation_id:
         filing.tax_computation_id = request.tax_computation_id
 
-    # 5. Call Sandbox ERI
+    # 6. Call Sandbox ERI
     try:
         result = await eri_service.submit_itr(profile.pan, itr_json_payload)
         
@@ -219,6 +293,8 @@ async def submit_tax_return(request: FilingRequest, current_user: User = Depends
         db.commit()
         db.refresh(filing)
 
+        log_sandbox_usage(db, "/tax/itr/submit", 200, result.get("simulated", False), current_user.id)
+
         return {
             "status": "SUCCESS",
             "message": result.get("message", "ITR Submitted Successfully"),
@@ -232,6 +308,8 @@ async def submit_tax_return(request: FilingRequest, current_user: User = Depends
         detail_msg = exc.detail if isinstance(exc, HTTPException) else str(exc)
         filing.failure_reason = detail_msg
         db.commit()
+        status_code = exc.status_code if isinstance(exc, HTTPException) else 500
+        log_sandbox_usage(db, "/tax/itr/submit", status_code, False, current_user.id)
         if isinstance(exc, HTTPException):
             raise exc
         raise HTTPException(status_code=500, detail=f"ITR submission failed: {detail_msg}")
@@ -290,6 +368,8 @@ async def everify_tax_return(
         db.commit()
         db.refresh(filing)
 
+        log_sandbox_usage(db, "/tax/itr/e-verify", 200, result.get("simulated", False), current_user.id)
+
         return {
             "status": "SUCCESS",
             "message": result.get("message", "ITR e-verified successfully."),
@@ -302,7 +382,45 @@ async def everify_tax_return(
         detail_msg = exc.detail if isinstance(exc, HTTPException) else str(exc)
         filing.failure_reason = f"e-Verification failed: {detail_msg}"
         db.commit()
+        status_code = exc.status_code if isinstance(exc, HTTPException) else 400
+        log_sandbox_usage(db, "/tax/itr/e-verify", status_code, False, current_user.id)
         if isinstance(exc, HTTPException):
             raise exc
         raise HTTPException(status_code=400, detail=f"e-Verification failed: {detail_msg}")
+
+
+@router.get("/usage-stats", response_model=UsageStatsResponse)
+async def get_usage_stats(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns cumulative and user-level Sandbox API usage counts and estimated costs
+    benchmarked against the ₹0.90/call standard rate.
+    """
+    logs = db.query(ApiUsageLog).all()
+
+    total_calls = len(logs)
+    live_calls = sum(1 for l in logs if not l.simulated)
+    simulated_calls = sum(1 for l in logs if l.simulated)
+    total_cost = sum(l.estimated_cost_inr for l in logs)
+
+    calls_by_endpoint = {}
+    for l in logs:
+        calls_by_endpoint[l.endpoint] = calls_by_endpoint.get(l.endpoint, 0) + 1
+
+    user_logs = [l for l in logs if l.user_id == current_user.id]
+    user_calls = len(user_logs)
+    user_cost = sum(l.estimated_cost_inr for l in user_logs)
+
+    return UsageStatsResponse(
+        total_calls=total_calls,
+        live_calls=live_calls,
+        simulated_calls=simulated_calls,
+        total_estimated_cost_inr=round(total_cost, 2),
+        unit_cost_estimate_inr=0.90,
+        calls_by_endpoint=calls_by_endpoint,
+        user_calls=user_calls,
+        user_estimated_cost_inr=round(user_cost, 2)
+    )
 
