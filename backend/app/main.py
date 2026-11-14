@@ -30,6 +30,7 @@ from .database import engine
 from . import models
 from .routers import auth, upload, chat, profile, itr, payment
 from .main_limiter import limiter
+from .services.eri_service import check_and_log_unverified_endpoints
 
 # Create DB tables
 try:
@@ -37,11 +38,18 @@ try:
 except Exception as e:
     logger.warning(f"Could not initialize DB tables on startup: {e}")
 
+# Warn about unverified Sandbox endpoints at module load
+check_and_log_unverified_endpoints()
+
 app = FastAPI(
     title="OFS Taxation Platform API",
     description="API for the ITR Filing Platform and WhatsApp Bot",
     version="1.0.0",
 )
+
+@app.on_event("startup")
+async def startup_check_endpoints():
+    check_and_log_unverified_endpoints()
 
 # --- Rate Limiting ---
 app.state.limiter = limiter

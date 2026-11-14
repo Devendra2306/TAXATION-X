@@ -103,8 +103,9 @@ async def get_sandbox_token() -> str:
 
     async with httpx.AsyncClient(timeout=15) as client:
         try:
+            auth_endpoint = getattr(settings, "SANDBOX_AUTH_ENDPOINT", "/authenticate")
             response = await client.post(
-                f"{ERI_API_BASE}/authenticate",
+                f"{ERI_API_BASE}{auth_endpoint}",
                 headers={
                     "x-api-key": api_key,
                     "x-api-secret": api_secret,
@@ -177,8 +178,9 @@ async def verify_pan_number(pan_number: str, name: str = "Unknown", dob: str = "
 
     async with httpx.AsyncClient(timeout=20) as client:
         try:
+            pan_endpoint = getattr(settings, "SANDBOX_PAN_VERIFY_ENDPOINT", "/kyc/pan/verify")
             response = await client.post(
-                f"{ERI_API_BASE}/kyc/pan/verify",
+                f"{ERI_API_BASE}{pan_endpoint}",
                 headers={
                     "Authorization": token,        # NO 'Bearer' prefix — Sandbox specific
                     "x-api-key": api_key,
@@ -275,6 +277,21 @@ async def request_aadhaar_otp(pan_number: str) -> dict:
     """
     Request ITD OTP for the user via Sandbox ERI API.
     """
+    endpoint = settings.SANDBOX_GENERATE_OTP_ENDPOINT
+    if not endpoint:
+        if settings.DEMO_MODE:
+            logger.warning("SANDBOX_GENERATE_OTP_ENDPOINT not configured. Returning simulated response because DEMO_MODE=True.")
+            return {
+                "success": True,
+                "message": "OTP sent successfully (Simulated - endpoint unconfigured)",
+                "simulated": True,
+                "raw": {"simulated": True}
+            }
+        raise HTTPException(
+            status_code=501,
+            detail="ITR filing endpoint not configured. See docs/SANDBOX_ENDPOINTS.md."
+        )
+
     token = await get_sandbox_token()
     api_key = settings.EXTERNAL_API_KEY
 
@@ -355,6 +372,31 @@ async def fetch_prefill_data(pan_number: str, otp: str) -> dict:
     """
     Verify OTP and fetch AIS / Form 26AS prefill data from ITD via Sandbox.
     """
+    endpoint = settings.SANDBOX_PREFILL_ENDPOINT
+    if not endpoint:
+        if settings.DEMO_MODE:
+            logger.warning("SANDBOX_PREFILL_ENDPOINT not configured. Returning simulated response because DEMO_MODE=True.")
+            return {
+                "pan": pan_number,
+                "gross_salary": 1200000.0,
+                "deductions_80c": 150000.0,
+                "section_80d": 25000.0,
+                "tds_deducted": 85000.0,
+                "interest_income": 12000.0,
+                "dividend_income": 3000.0,
+                "capital_gains": 0.0,
+                "business_income": 0.0,
+                "employer_name": "Demo Employer Pvt. Ltd.",
+                "itr1_eligible": True,
+                "unsupported_reason": None,
+                "simulated": True,
+                "raw_sandbox_data": {"simulated": True, "note": "Demo mode active"}
+            }
+        raise HTTPException(
+            status_code=501,
+            detail="ITR filing endpoint not configured. See docs/SANDBOX_ENDPOINTS.md."
+        )
+
     token = await get_sandbox_token()
     api_key = settings.EXTERNAL_API_KEY
 
@@ -510,6 +552,22 @@ async def submit_itr(pan_number: str, itr_json_payload: dict) -> dict:
     """
     Submit ITR to Income Tax Department via Sandbox ERI.
     """
+    endpoint = settings.SANDBOX_SUBMIT_ENDPOINT
+    if not endpoint:
+        if settings.DEMO_MODE:
+            logger.warning("SANDBOX_SUBMIT_ENDPOINT not configured. Returning simulated response because DEMO_MODE=True.")
+            return {
+                "status": "SUCCESS",
+                "message": "ITR Submitted (Demo Mode — simulated)",
+                "ack_number": "ACK_DEMO_987654321",
+                "simulated": True,
+                "raw": {"simulated": True}
+            }
+        raise HTTPException(
+            status_code=501,
+            detail="ITR filing endpoint not configured. See docs/SANDBOX_ENDPOINTS.md."
+        )
+
     token = await get_sandbox_token()
     api_key = settings.EXTERNAL_API_KEY
 
@@ -598,6 +656,22 @@ async def everify_itr(pan_number: str, ack_number: str, otp: str) -> dict:
     Endpoint: POST /tax/itr/e-verify
     Payload: {"pan": pan_number, "ack_number": ack_number, "otp": otp, "verification_mode": "aadhaar_otp"}
     """
+    endpoint = settings.SANDBOX_EVERIFY_ENDPOINT
+    if not endpoint:
+        if settings.DEMO_MODE:
+            logger.warning("SANDBOX_EVERIFY_ENDPOINT not configured. Returning simulated response because DEMO_MODE=True.")
+            return {
+                "status": "SUCCESS",
+                "message": "ITR e-verified (Demo Mode — simulated)",
+                "ack_number": ack_number,
+                "simulated": True,
+                "raw": {"simulated": True}
+            }
+        raise HTTPException(
+            status_code=501,
+            detail="ITR filing endpoint not configured. See docs/SANDBOX_ENDPOINTS.md."
+        )
+
     token = await get_sandbox_token()
     api_key = settings.EXTERNAL_API_KEY
 
@@ -859,6 +933,15 @@ async def check_upstream_filing_status(pan_number: str, assessment_year: str) ->
     Queries Sandbox / Income Tax Department to check if an ITR filing already exists
     for this PAN and Assessment Year. Used prior to retry attempts after a network timeout.
     """
+    endpoint = settings.SANDBOX_STATUS_ENDPOINT
+    if not endpoint:
+        if settings.DEMO_MODE:
+            return {"exists": False, "status": "DEMO_NOT_FOUND"}
+        raise HTTPException(
+            status_code=501,
+            detail="ITR filing endpoint not configured. See docs/SANDBOX_ENDPOINTS.md."
+        )
+
     token = await get_sandbox_token()
     api_key = settings.EXTERNAL_API_KEY
     endpoint = settings.SANDBOX_STATUS_ENDPOINT
@@ -902,3 +985,31 @@ async def check_upstream_filing_status(pan_number: str, assessment_year: str) ->
         except httpx.RequestError as e:
             logger.warning(f"Could not check upstream filing status: {e}")
             return {"exists": False, "status": "NETWORK_ERROR", "error": str(e)}
+
+
+def check_and_log_unverified_endpoints() -> list[str]:
+    """
+    Checks configured Sandbox ERI endpoints and logs warnings for any unverified/unconfigured endpoints.
+    In DEMO_MODE=False (production), calls to unconfigured endpoints will be refused with HTTP 501.
+    """
+    unverified = []
+    checks = [
+        ("SANDBOX_GENERATE_OTP_ENDPOINT", settings.SANDBOX_GENERATE_OTP_ENDPOINT),
+        ("SANDBOX_PREFILL_ENDPOINT", settings.SANDBOX_PREFILL_ENDPOINT),
+        ("SANDBOX_SUBMIT_ENDPOINT", settings.SANDBOX_SUBMIT_ENDPOINT),
+        ("SANDBOX_EVERIFY_ENDPOINT", settings.SANDBOX_EVERIFY_ENDPOINT),
+        ("SANDBOX_STATUS_ENDPOINT", settings.SANDBOX_STATUS_ENDPOINT),
+    ]
+    for name, val in checks:
+        if not val:
+            unverified.append(name)
+
+    if unverified:
+        logger.warning(
+            "Sandbox ERI endpoints unverified or unconfigured: %s. "
+            "In production mode (DEMO_MODE=False), calls to unconfigured endpoints will be refused with HTTP 501. "
+            "See docs/SANDBOX_ENDPOINTS.md for configuration details.",
+            ", ".join(unverified)
+        )
+    return unverified
+
