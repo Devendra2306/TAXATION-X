@@ -519,12 +519,12 @@ export default function ExportPage() {
               <div>
                 <span className="text-slate-400 block">PAN Number</span>
                 <span className="font-mono font-bold text-slate-800 text-sm mt-0.5 block">
-                  {pan || 'ABCDE1234F'}
+                  {pan || 'Not Specified'}
                 </span>
               </div>
               <div>
                 <span className="text-slate-400 block">Assessment Year</span>
-                <span className="font-bold text-slate-800 text-sm mt-0.5 block">2025 - 2026</span>
+                <span className="font-bold text-slate-800 text-sm mt-0.5 block">{CURRENT_ASSESSMENT_YEAR}</span>
               </div>
               <div>
                 <span className="text-slate-400 block">Filing Status</span>
@@ -717,7 +717,7 @@ export default function ExportPage() {
             <span>Official ERI Intermediary</span>
           </div>
         </div>
-        <div>AY 2025-2026 Compliant</div>
+        <div>AY {CURRENT_ASSESSMENT_YEAR} Compliant</div>
       </div>
     </div>
   );
