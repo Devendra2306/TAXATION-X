@@ -85,7 +85,7 @@ async def test_submit_idempotent_single_sandbox_call(db_session, sample_user):
         res1 = await submit_tax_return(req, sample_user, db_session)
         assert res1["status"] == "SUCCESS"
         assert res1["ack_number"] == "ACK_REAL_9876543210"
-        assert res1["filing_status"] == FilingStatus.SUBMITTED.value
+        assert res1["filing_status"] == FilingStatus.EVERIFY_PENDING.value
 
         # 2nd submit (idempotent call)
         res2 = await submit_tax_return(req, sample_user, db_session)
@@ -130,11 +130,11 @@ async def test_submit_failure_allows_retry(db_session, sample_user):
         res_retry = await submit_tax_return(req, sample_user, db_session)
         assert res_retry["status"] == "SUCCESS"
         assert res_retry["ack_number"] == "ACK_RETRY_SUCCESS_111"
-        assert res_retry["filing_status"] == FilingStatus.SUBMITTED.value
+        assert res_retry["filing_status"] == FilingStatus.EVERIFY_PENDING.value
 
-        # DB updated to submitted
+        # DB updated to everify_pending
         db_session.refresh(filing)
-        assert filing.status == FilingStatus.SUBMITTED.value
+        assert filing.status == FilingStatus.EVERIFY_PENDING.value
         assert filing.ack_number == "ACK_RETRY_SUCCESS_111"
         assert filing.failure_reason is None
 

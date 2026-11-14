@@ -479,3 +479,96 @@ async def submit_itr(pan_number: str, itr_json_payload: dict) -> dict:
         except httpx.RequestError as e:
             logger.error(f"ITR submit connection error: {e}")
             raise HTTPException(status_code=503, detail="Could not connect to ITR filing service.")
+
+
+async def everify_itr(pan_number: str, ack_number: str, otp: str) -> dict:
+    """
+    E-verify ITR submission using Aadhaar OTP via Sandbox ERI.
+    Endpoint: POST /tax/itr/e-verify
+    Payload: {"pan": pan_number, "ack_number": ack_number, "otp": otp, "verification_mode": "aadhaar_otp"}
+    """
+    token = await get_sandbox_token()
+    api_key = settings.EXTERNAL_API_KEY
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        try:
+            response = await client.post(
+                f"{ERI_API_BASE}/tax/itr/e-verify",
+                headers={
+                    "Authorization": token,
+                    "x-api-key": api_key,
+                    "x-api-version": "1.0.0",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "pan": pan_number,
+                    "ack_number": ack_number,
+                    "otp": otp,
+                    "verification_mode": "aadhaar_otp"
+                }
+            )
+
+            try:
+                resp_json = response.json()
+            except Exception:
+                resp_json = {"message": response.text}
+
+            if response.status_code == 200:
+                data = resp_json.get("data", {})
+                return {
+                    "status": "SUCCESS",
+                    "message": "ITR e-verified successfully",
+                    "ack_number": ack_number,
+                    "simulated": False,
+                    "raw": data
+                }
+            elif response.status_code == 401:
+                if settings.DEMO_MODE:
+                    return {
+                        "status": "SUCCESS",
+                        "message": "ITR e-verified (Demo Mode — simulated)",
+                        "ack_number": ack_number,
+                        "simulated": True,
+                        "raw": {"simulated": True}
+                    }
+                raise HTTPException(status_code=502, detail="Sandbox authentication failed")
+            elif response.status_code == 403:
+                msg = resp_json.get("message", "")
+                if _is_credits_exhausted(msg):
+                    if settings.DEMO_MODE:
+                        return {
+                            "status": "SUCCESS",
+                            "message": "ITR e-verified (Simulated - credits exhausted)",
+                            "ack_number": ack_number,
+                            "simulated": True,
+                            "raw": {"simulated": True, "reason": "credits_exhausted"}
+                        }
+                    raise HTTPException(status_code=503, detail="Sandbox credits exhausted")
+                if settings.DEMO_MODE:
+                    return {
+                        "status": "SUCCESS",
+                        "message": "ITR e-verified (API plan not subscribed — simulated)",
+                        "ack_number": ack_number,
+                        "simulated": True,
+                        "raw": {"simulated": True}
+                    }
+                raise HTTPException(status_code=502, detail="Endpoint not enabled on this Sandbox plan")
+            elif response.status_code == 404:
+                if settings.DEMO_MODE:
+                    logger.warning(f"ITR e-verify API not available ({response.status_code}). Simulating because DEMO_MODE=True.")
+                    return {
+                        "status": "SUCCESS",
+                        "message": "ITR e-verified (API plan not subscribed — simulated)",
+                        "ack_number": ack_number,
+                        "simulated": True,
+                        "raw": {"simulated": True}
+                    }
+                raise HTTPException(status_code=502, detail="Endpoint not enabled on this Sandbox plan")
+            else:
+                raise HTTPException(status_code=400, detail=f"e-Verification failed: {resp_json.get('message', response.text)}")
+
+        except HTTPException:
+            raise
+        except httpx.RequestError as e:
+            logger.error(f"ITR e-verify connection error: {e}")
+            raise HTTPException(status_code=503, detail="Could not connect to e-verification service.")

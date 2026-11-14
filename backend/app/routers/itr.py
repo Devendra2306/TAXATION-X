@@ -1,10 +1,17 @@
 import threading
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 
-from app.schemas.itr import OTPRequest, OTPVerify, FilingRequest, PrefillDataResponse, ITRStatusResponse
+from app.schemas.itr import (
+    OTPRequest,
+    OTPVerify,
+    FilingRequest,
+    PrefillDataResponse,
+    ITRStatusResponse,
+    EVerifyRequest
+)
 from app.services import eri_service
 from app.routers.auth import get_current_user
 from app.models.user import User
@@ -120,6 +127,11 @@ async def get_filing_status(
             failure_reason=None
         )
 
+    deadline_str = None
+    if filing.submitted_at:
+        deadline = filing.submitted_at + timedelta(days=30)
+        deadline_str = deadline.strftime("%Y-%m-%d %H:%M:%S")
+
     return ITRStatusResponse(
         pan_number=pan,
         assessment_year=filing.assessment_year,
@@ -127,6 +139,7 @@ async def get_filing_status(
         acknowledgement_number=filing.ack_number,
         date_of_filing=filing.submitted_at.strftime("%Y-%m-%d %H:%M:%S") if filing.submitted_at else None,
         submitted_at=filing.submitted_at.isoformat() if filing.submitted_at else None,
+        verification_deadline=deadline_str,
         failure_reason=filing.failure_reason
     )
 
@@ -136,7 +149,7 @@ async def submit_tax_return(request: FilingRequest, current_user: User = Depends
     """
     Idempotent submit: Constructs official ITR schema JSON and submits via ERI.
     Refuses if in wrong state, returns existing ack if already submitted,
-    and allows retry on failure.
+    and sets status to everify_pending upon successful upstream response.
     """
     from app.routers.profile import export_itr_json
     from app.models.tax_profile import TaxProfile
@@ -198,7 +211,8 @@ async def submit_tax_return(request: FilingRequest, current_user: User = Depends
         if not ack_number or ack_number == "PENDING":
             raise HTTPException(status_code=502, detail="Upstream did not return a valid acknowledgement number.")
 
-        filing.status = FilingStatus.SUBMITTED.value
+        # Successfully submitted: now awaiting e-verification within 30 days
+        filing.status = FilingStatus.EVERIFY_PENDING.value
         filing.ack_number = ack_number
         filing.submitted_at = datetime.now(timezone.utc)
         filing.failure_reason = None
@@ -221,3 +235,74 @@ async def submit_tax_return(request: FilingRequest, current_user: User = Depends
         if isinstance(exc, HTTPException):
             raise exc
         raise HTTPException(status_code=500, detail=f"ITR submission failed: {detail_msg}")
+
+
+@router.post("/everify")
+async def everify_tax_return(
+    request: EVerifyRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    E-verify an ITR return using Aadhaar OTP via Sandbox ERI.
+    Transitions status from everify_pending -> verified (or failed).
+    """
+    from app.models.tax_profile import TaxProfile
+    profile = db.query(TaxProfile).filter(TaxProfile.user_id == current_user.id).first()
+    pan = request.pan_number or (profile.pan if profile else None)
+    if not pan:
+        raise HTTPException(status_code=400, detail="PAN is required to e-verify a return.")
+
+    filing = (
+        db.query(Filing)
+        .filter(Filing.user_id == current_user.id, Filing.assessment_year == request.assessment_year)
+        .first()
+    )
+
+    if not filing:
+        raise HTTPException(status_code=404, detail="No filing record found for this assessment year.")
+
+    # Idempotent check: if already verified, return success
+    if filing.status == FilingStatus.VERIFIED.value:
+        return {
+            "status": "SUCCESS",
+            "message": "ITR is already e-verified.",
+            "ack_number": filing.ack_number,
+            "filing_status": filing.status,
+            "simulated": False
+        }
+
+    # Must be in everify_pending or submitted status
+    if filing.status not in [FilingStatus.EVERIFY_PENDING.value, FilingStatus.SUBMITTED.value]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Filing in '{filing.status}' status cannot be e-verified. Submit return first."
+        )
+
+    ack_num = request.acknowledgement_number or filing.ack_number
+    if not ack_num:
+        raise HTTPException(status_code=400, detail="Acknowledgement number is missing from filing record.")
+
+    try:
+        result = await eri_service.everify_itr(pan, ack_num, request.otp)
+        filing.status = FilingStatus.VERIFIED.value
+        filing.failure_reason = None
+        db.commit()
+        db.refresh(filing)
+
+        return {
+            "status": "SUCCESS",
+            "message": result.get("message", "ITR e-verified successfully."),
+            "ack_number": filing.ack_number,
+            "filing_status": filing.status,
+            "simulated": result.get("simulated", False),
+            "raw": result.get("raw")
+        }
+    except Exception as exc:
+        detail_msg = exc.detail if isinstance(exc, HTTPException) else str(exc)
+        filing.failure_reason = f"e-Verification failed: {detail_msg}"
+        db.commit()
+        if isinstance(exc, HTTPException):
+            raise exc
+        raise HTTPException(status_code=400, detail=f"e-Verification failed: {detail_msg}")
+

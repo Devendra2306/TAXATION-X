@@ -25,7 +25,10 @@ import Link from 'next/link';
 
 export default function ExportPage() {
   const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloading' | 'done'>('idle');
-  const [efileStatus, setEfileStatus] = useState<'idle' | 'submitting' | 'success'>('idle');
+  const [efileStatus, setEfileStatus] = useState<'idle' | 'submitting' | 'everify_pending' | 'verified'>('idle');
+  const [everifyOtp, setEverifyOtp] = useState('');
+  const [isEverifying, setIsEverifying] = useState(false);
+  const [everifyDeadline, setEverifyDeadline] = useState('');
   const [ackDetails, setAckDetails] = useState<any>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [isSimulated, setIsSimulated] = useState(false);
@@ -56,14 +59,15 @@ export default function ExportPage() {
       const sim = localStorage.getItem('is_simulated_filing') === 'true';
       setIsSimulated(sim);
 
+      const isAlreadyVerified = localStorage.getItem('itr_verified') === 'true';
       if (alreadyFiled && storedAck) {
         setAckDetails({
           ack_number: storedAck,
           date: localStorage.getItem('ack_date') || 'Today',
           form: 'ITR-1 (Sahaj)',
-          status: sim ? 'Submitted (Demo Mode)' : 'Submitted'
+          status: isAlreadyVerified ? 'Filed & e-Verified' : 'e-Verification Pending'
         });
-        setEfileStatus('success');
+        setEfileStatus(isAlreadyVerified ? 'verified' : 'everify_pending');
       }
 
       // Sync from backend filing status endpoint
@@ -80,16 +84,24 @@ export default function ExportPage() {
               ['submitted', 'everify_pending', 'verified'].includes(statusData.status)
             ) {
               const ack = statusData.acknowledgement_number || localStorage.getItem('ack_number');
+              if (statusData.verification_deadline) {
+                setEverifyDeadline(statusData.verification_deadline);
+              }
               if (ack) {
                 setAckDetails({
                   ack_number: ack,
                   date: statusData.date_of_filing || localStorage.getItem('ack_date') || 'Recent',
                   form: 'ITR-1 (Sahaj)',
-                  status: statusData.status === 'verified' ? 'Filed & Verified' : 'Submitted (e-Verify Pending)'
+                  status: statusData.status === 'verified' ? 'Filed & e-Verified' : 'e-Verification Pending'
                 });
-                setEfileStatus('success');
                 localStorage.setItem('itr_filed', 'true');
                 localStorage.setItem('ack_number', ack);
+                if (statusData.status === 'verified') {
+                  localStorage.setItem('itr_verified', 'true');
+                  setEfileStatus('verified');
+                } else {
+                  setEfileStatus('everify_pending');
+                }
               }
             }
           })
@@ -150,11 +162,20 @@ export default function ExportPage() {
         setIsSimulated(false);
       }
 
+      const deadlineDate = new Date();
+      deadlineDate.setDate(deadlineDate.getDate() + 30);
+      const deadlineStr = deadlineDate.toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+      setEverifyDeadline(deadlineStr);
+
       const ackInfo = {
         ack_number: ackNum,
         date: currentDate,
         form: 'ITR-1 (Sahaj)',
-        status: data.simulated ? 'Submitted (Demo Mode)' : 'Submitted'
+        status: 'e-Verification Pending'
       };
 
       localStorage.setItem('itr_filed', 'true');
@@ -162,14 +183,92 @@ export default function ExportPage() {
       localStorage.setItem('ack_date', currentDate);
 
       setAckDetails(ackInfo);
-      setEfileStatus('success');
+      // Gated by Phase 4: Must e-verify before seeing "Filing Complete"
+      setEfileStatus('everify_pending');
     } catch (err: any) {
       setErrorMessage(err?.message || 'Network error during filing submission. Please retry.');
       setEfileStatus('idle');
     }
   };
 
-  // 2. Download JSON for manual offline filing
+  // 2. Submit Aadhaar OTP for e-Verification (Phase 4)
+  const handleEverifySubmit = async () => {
+    if (!everifyOtp || everifyOtp.trim().length !== 6) {
+      setErrorMessage('Please enter a valid 6-digit Aadhaar OTP to complete e-verification.');
+      return;
+    }
+
+    setIsEverifying(true);
+    setErrorMessage('');
+
+    try {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+      const res = await fetch(`${API_URL}/api/itr/everify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          otp: everifyOtp.trim(),
+          acknowledgement_number: ackDetails?.ack_number,
+          pan_number: pan || undefined,
+          assessment_year: '2025-26'
+        })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErrorMessage(data.detail || 'e-Verification failed. Please check the OTP and retry.');
+        setIsEverifying(false);
+        return;
+      }
+
+      if (data.simulated) {
+        localStorage.setItem('is_simulated_filing', 'true');
+        setIsSimulated(true);
+      }
+
+      localStorage.setItem('itr_verified', 'true');
+      setAckDetails((prev: any) => ({
+        ...prev,
+        status: data.simulated ? 'Filed & Verified (Demo)' : 'Filed & e-Verified'
+      }));
+      setEfileStatus('verified');
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Network error during e-verification.');
+    } finally {
+      setIsEverifying(false);
+    }
+  };
+
+  const handleResendEverifyOtp = async () => {
+    setErrorMessage('');
+    try {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const res = await fetch(`${API_URL}/api/itr/generate-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ pan_number: pan || 'ABCDE1234F' })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErrorMessage(data.detail || 'Failed to resend Aadhaar OTP. Please try again.');
+      } else {
+        alert('Aadhaar OTP resent successfully to your registered mobile number.');
+      }
+    } catch {
+      setErrorMessage('Failed to connect to OTP service.');
+    }
+  };
+
+  // 3. Download JSON for manual offline filing
   const handleDownload = async () => {
     setDownloadStatus('downloading');
     try {
@@ -304,9 +403,99 @@ export default function ExportPage() {
         </div>
       )}
 
-      {/* SUCCESS RECEIPT STATE (When e-Filing Succeeds) */}
+      {/* E-VERIFY PENDING STATE (Phase 4: Must e-Verify before Filing is Complete) */}
       <AnimatePresence>
-        {efileStatus === 'success' && ackDetails && (
+        {efileStatus === 'everify_pending' && ackDetails && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl border-2 border-indigo-500 p-6 sm:p-8 shadow-xl space-y-6"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-8 h-8" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full">
+                    Step 2 of 2: Statutory e-Verification Required
+                  </span>
+                  <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1">
+                    Return Submitted to ITD — e-Verify Now
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Your return has been transmitted. Under CBDT rules, an ITR is only valid after e-verification within 30 days.
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-right sm:self-center">
+                <span className="text-[11px] text-slate-400 block">Filing Acknowledgement</span>
+                <span className="font-mono text-sm font-extrabold text-indigo-900 bg-indigo-50 px-3 py-1 rounded-lg inline-block mt-0.5">
+                  {ackDetails.ack_number}
+                </span>
+              </div>
+            </div>
+
+            {/* Statutory Deadline Notice */}
+            <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-2xl flex items-start gap-3 text-xs text-amber-900">
+              <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <strong>30-Day Mandatory Verification Window:</strong>
+                <p className="mt-0.5 leading-relaxed text-amber-800">
+                  Per CBDT Notification No. 5/2022, returns not verified within 30 days ({everifyDeadline ? `by ${everifyDeadline}` : 'within 30 days of submission'}) will be treated as invalid (non-est).
+                </p>
+              </div>
+            </div>
+
+            {/* Aadhaar OTP Input Box */}
+            <div className="max-w-md mx-auto space-y-4 py-2">
+              <label className="text-xs font-bold text-slate-800 block text-center">
+                Enter 6-digit Aadhaar OTP sent to your registered mobile
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={everifyOtp}
+                onChange={(e) => setEverifyOtp(e.target.value.replace(/[^0-9]/g, ''))}
+                placeholder="123456"
+                className="w-full text-center text-2xl font-mono font-bold tracking-[0.5em] py-3.5 border-2 border-indigo-200 rounded-2xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 outline-none transition-all placeholder:text-slate-300 placeholder:tracking-widest"
+              />
+
+              <button
+                onClick={handleEverifySubmit}
+                disabled={isEverifying || everifyOtp.length !== 6}
+                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl font-bold text-sm shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-2"
+              >
+                {isEverifying ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Verifying with ITD...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" /> e-Verify Return with Aadhaar OTP
+                  </>
+                )}
+              </button>
+
+              <div className="flex items-center justify-between text-xs text-slate-500 pt-2 px-1">
+                <span>Didn't receive Aadhaar OTP?</span>
+                <button
+                  onClick={handleResendEverifyOtp}
+                  className="text-indigo-600 font-bold hover:underline"
+                >
+                  Resend OTP
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* VERIFIED SUCCESS RECEIPT STATE (Only shown when status is 'verified') */}
+      <AnimatePresence>
+        {efileStatus === 'verified' && ackDetails && (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -419,7 +608,7 @@ export default function ExportPage() {
       </AnimatePresence>
 
       {/* TWO FILING OPTIONS GRID (When not yet submitted) */}
-      {efileStatus !== 'success' && (
+      {efileStatus !== 'verified' && efileStatus !== 'everify_pending' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
           {/* Card A: 1-Click Direct e-Filing (Recommended) */}
           <div className="bg-gradient-to-b from-indigo-50/60 via-white to-white rounded-3xl border-2 border-indigo-600/30 hover:border-indigo-600 p-6 sm:p-8 shadow-sm flex flex-col justify-between relative transition-all">

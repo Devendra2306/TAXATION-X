@@ -23,7 +23,14 @@ class ITRStatusResponse(BaseModel):
     acknowledgement_number: Optional[str] = None
     date_of_filing: Optional[str] = None
     submitted_at: Optional[str] = None
+    verification_deadline: Optional[str] = None
     failure_reason: Optional[str] = None
+
+class EVerifyRequest(BaseModel):
+    otp: str = Field(..., description="6-digit Aadhaar OTP")
+    pan_number: Optional[str] = None
+    acknowledgement_number: Optional[str] = None
+    assessment_year: str = "2025-26"
 
 class PrefillDataResponse(BaseModel):
     pan: str

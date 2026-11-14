@@ -317,3 +317,75 @@ async def test_submit_itr_timeout():
             await eri_service.submit_itr(VALID_PAN, {})
         assert exc.value.status_code == 503
         assert "Could not connect to ITR filing service" in exc.value.detail
+
+
+# =========================================================================
+# 5. everify_itr TESTS (Phase 4)
+# =========================================================================
+
+@pytest.mark.asyncio
+async def test_everify_itr_success():
+    mock_payload = {
+        "data": {
+            "ack_number": "ACK_REAL_123456789",
+            "verification_status": "VERIFIED"
+        }
+    }
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = create_mock_response(200, mock_payload)
+        res = await eri_service.everify_itr(VALID_PAN, "ACK_REAL_123456789", "123456")
+        assert res["status"] == "SUCCESS"
+        assert res["ack_number"] == "ACK_REAL_123456789"
+        assert res["simulated"] is False
+
+
+@pytest.mark.asyncio
+async def test_everify_itr_401():
+    settings.DEMO_MODE = False
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = create_mock_response(401, {"message": "Invalid token"})
+        with pytest.raises(HTTPException) as exc:
+            await eri_service.everify_itr(VALID_PAN, "ACK_123", "123456")
+        assert exc.value.status_code == 502
+        assert "Sandbox authentication failed" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_everify_itr_403_credits():
+    settings.DEMO_MODE = False
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = create_mock_response(403, {"message": "Insufficient credits"})
+        with pytest.raises(HTTPException) as exc:
+            await eri_service.everify_itr(VALID_PAN, "ACK_123", "123456")
+        assert exc.value.status_code == 503
+        assert "Sandbox credits exhausted" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_everify_itr_404_demo_vs_strict():
+    settings.DEMO_MODE = False
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = create_mock_response(404, {"message": "Not Found"})
+        with pytest.raises(HTTPException) as exc:
+            await eri_service.everify_itr(VALID_PAN, "ACK_123", "123456")
+        assert exc.value.status_code == 502
+        assert "Endpoint not enabled" in exc.value.detail
+
+    settings.DEMO_MODE = True
+    try:
+        with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = create_mock_response(404, {"message": "Not Found"})
+            res = await eri_service.everify_itr(VALID_PAN, "ACK_123", "123456")
+            assert res["status"] == "SUCCESS"
+            assert res["simulated"] is True
+    finally:
+        settings.DEMO_MODE = False
+
+
+@pytest.mark.asyncio
+async def test_everify_itr_timeout():
+    with patch("httpx.AsyncClient.post", side_effect=httpx.TimeoutException("Timeout")):
+        with pytest.raises(HTTPException) as exc:
+            await eri_service.everify_itr(VALID_PAN, "ACK_123", "123456")
+        assert exc.value.status_code == 503
+        assert "Could not connect to e-verification service" in exc.value.detail
