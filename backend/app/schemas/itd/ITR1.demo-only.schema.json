@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "ITD ITR-1 (Sahaj) JSON Schema",
-  "description": "Income Tax Department (CBDT) official schema specification for ITR-1 (Sahaj). Drop in the official Schema.zip JSON file from incometax.gov.in to update.",
+  "title": "ITR-1 (Sahaj) Internal Demo-Only Placeholder Schema",
+  "description": "PROJECT-WRITTEN PLACEHOLDER SCHEMA FOR DEVELOPMENT AND DEMO PURPOSES ONLY. This is NOT an official schema published by the Income Tax Department (CBDT) and must NEVER be used to validate production filings. Official schemas must be downloaded from incometax.gov.in and registered in SOURCES.json.",
   "type": "object",
   "required": ["ITR"],
   "properties": {

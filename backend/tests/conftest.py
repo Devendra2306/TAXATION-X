@@ -3,7 +3,7 @@ import pytest
 
 # Ensure standard test environment variables are loaded before any app module imports Settings
 os.environ.setdefault("JWT_SECRET_KEY", "test_super_secure_random_jwt_secret_key_for_testing_only_123456789")
-os.environ.setdefault("DEMO_MODE", "false")
+os.environ.setdefault("DEMO_MODE", "true")
 os.environ.setdefault("EXTERNAL_API_KEY", "test_mock_sandbox_api_key")
 os.environ.setdefault("EXTERNAL_API_SECRET", "test_mock_sandbox_api_secret")
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
@@ -12,3 +12,14 @@ os.environ.setdefault("SANDBOX_PREFILL_ENDPOINT", "/tax/itr/prefill")
 os.environ.setdefault("SANDBOX_SUBMIT_ENDPOINT", "/tax/itr/submit")
 os.environ.setdefault("SANDBOX_EVERIFY_ENDPOINT", "/tax/itr/e-verify")
 os.environ.setdefault("SANDBOX_STATUS_ENDPOINT", "/tax/itr/status")
+
+from app.config import settings
+settings.DEMO_MODE = True
+
+
+@pytest.fixture(autouse=True)
+def reset_test_settings():
+    """Ensure every test runs with clean default demo mode unless explicitly overridden."""
+    settings.DEMO_MODE = True
+    yield
+    settings.DEMO_MODE = True

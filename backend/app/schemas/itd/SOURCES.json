@@ -1,0 +1,4 @@
+{
+  "description": "Manifest of official ITD schemas downloaded from incometax.gov.in. Any schema not listed here with a matching sha256 must not be loaded in production.",
+  "schemas": {}
+}

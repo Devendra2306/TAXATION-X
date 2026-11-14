@@ -1,4 +1,5 @@
 import httpx
+import hashlib
 import json
 import jsonschema
 import logging
@@ -799,17 +800,55 @@ def check_itr1_eligibility(
 
 
 ITD_SCHEMAS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "schemas", "itd")
+SOURCES_MANIFEST_PATH = os.path.join(ITD_SCHEMAS_DIR, "SOURCES.json")
 _schema_cache: dict[str, dict] = {}
 
 
-def get_itd_schema_path(expected_ay: Optional[str] = None) -> Optional[str]:
+def get_file_sha256(filepath: str) -> str:
+    """Computes SHA-256 hex digest for a file."""
+    hasher = hashlib.sha256()
+    with open(filepath, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest().lower()
+
+
+def load_sources_manifest(manifest_path: Optional[str] = None) -> dict:
+    """Loads and returns the SOURCES.json manifest."""
+    path = manifest_path or SOURCES_MANIFEST_PATH
+    if not os.path.isfile(path):
+        return {"schemas": {}}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Error reading schema manifest at {path}: {e}")
+        return {"schemas": {}}
+
+
+def resolve_itd_schema(
+    expected_ay: Optional[str] = None,
+    schemas_dir: Optional[str] = None,
+    manifest_path: Optional[str] = None
+) -> tuple[Optional[str], Optional[str], bool]:
     """
-    Locates the official ITD JSON schema file for the requested AY.
-    Looks for:
-      1. ITR1_AY{expected_ay}.schema.json (e.g. ITR1_AY2026-27.schema.json)
-      2. ITR1_AY{start_year}.schema.json (e.g. ITR1_AY2026.schema.json)
-      3. ITR1.schema.json (fallback default)
+    Resolves the ITD JSON schema path and verifies cryptographic checksum.
+    Returns: (schema_path, sha256_checksum, is_demo_placeholder)
+
+    Rules:
+      1. Production (DEMO_MODE=False):
+         - Refuses ITR1.demo-only.schema.json unconditionally.
+         - Requires the schema to be explicitly registered in SOURCES.json with matching SHA-256.
+         - Fails with HTTP 503 if unmanifested, missing, or checksum mismatch.
+      2. Demo Mode (DEMO_MODE=True):
+         - Allows verified official schema if present.
+         - Otherwise allows ITR1.demo-only.schema.json with loud warning.
+         - If demo file missing, returns (None, None, False) for fallback.
     """
+    base_dir = schemas_dir or ITD_SCHEMAS_DIR
+    manifest = load_sources_manifest(manifest_path)
+    registered_schemas = manifest.get("schemas", {})
+
     candidates = []
     if expected_ay:
         ay_clean = expected_ay.strip()
@@ -818,18 +857,80 @@ def get_itd_schema_path(expected_ay: Optional[str] = None) -> Optional[str]:
         candidates.append(f"ITR1_AY{start_year}.schema.json")
     candidates.append("ITR1.schema.json")
 
+    # 1. Production Mode: Strict manifest & checksum verification
+    if not settings.DEMO_MODE:
+        matched_filename = None
+        for filename in candidates:
+            if filename in registered_schemas:
+                matched_filename = filename
+                break
+
+        if not matched_filename:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    f"Official ITD schema for AY {expected_ay or 'default'} has not been installed. "
+                    "Download it from incometax.gov.in and add it to SOURCES.json. "
+                    "See backend/app/schemas/itd/README.md."
+                )
+            )
+
+        schema_file_path = os.path.join(base_dir, matched_filename)
+        if not os.path.isfile(schema_file_path):
+            raise HTTPException(
+                status_code=503,
+                detail=f"Official ITD schema '{matched_filename}' is registered in SOURCES.json but not found on disk at {schema_file_path}."
+            )
+
+        expected_sha = str(registered_schemas[matched_filename].get("sha256", "")).strip().lower()
+        actual_sha = get_file_sha256(schema_file_path)
+
+        if not expected_sha or actual_sha != expected_sha:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    f"Schema checksum mismatch for '{matched_filename}'. "
+                    f"Expected {expected_sha}, got {actual_sha}. Refusing unverified schema file."
+                )
+            )
+
+        return schema_file_path, actual_sha, False
+
+    # 2. Demo Mode: Permit official if registered, or fall back to demo-only placeholder
     for filename in candidates:
-        candidate_path = os.path.join(ITD_SCHEMAS_DIR, filename)
-        if os.path.isfile(candidate_path):
-            return candidate_path
-    return None
+        if filename in registered_schemas:
+            schema_file_path = os.path.join(base_dir, filename)
+            if os.path.isfile(schema_file_path):
+                expected_sha = str(registered_schemas[filename].get("sha256", "")).strip().lower()
+                actual_sha = get_file_sha256(schema_file_path)
+                if expected_sha and actual_sha == expected_sha:
+                    return schema_file_path, actual_sha, False
+
+    demo_schema_path = os.path.join(base_dir, "ITR1.demo-only.schema.json")
+    if os.path.isfile(demo_schema_path):
+        logger.warning(
+            "DEMO MODE WARNING: Validating ITR payload against project-written placeholder "
+            "'ITR1.demo-only.schema.json'. THIS IS NOT AN OFFICIAL CBDT SCHEMA."
+        )
+        demo_sha = get_file_sha256(demo_schema_path)
+        return demo_schema_path, demo_sha, True
+
+    return None, None, False
 
 
-def load_itd_schema(schema_path: str) -> dict:
-    if schema_path not in _schema_cache:
+def get_itd_schema_path(expected_ay: Optional[str] = None) -> Optional[str]:
+    """Compatibility wrapper returning path from resolve_itd_schema."""
+    path, _, _ = resolve_itd_schema(expected_ay)
+    return path
+
+
+def load_itd_schema(schema_path: str, sha256_checksum: Optional[str] = None) -> dict:
+    """Loads and caches parsed JSON schema keyed by sha256 checksum."""
+    cache_key = sha256_checksum or get_file_sha256(schema_path)
+    if cache_key not in _schema_cache:
         with open(schema_path, "r", encoding="utf-8") as f:
-            _schema_cache[schema_path] = json.load(f)
-    return _schema_cache[schema_path]
+            _schema_cache[cache_key] = json.load(f)
+    return _schema_cache[cache_key]
 
 
 def _validate_handwritten_fallback(itr_data: Dict[str, Any], errors: list[str], expected_ay: Optional[str] = None):
@@ -918,13 +1019,8 @@ def validate_itr1_schema(itr_data: Dict[str, Any], expected_ay: Optional[str] = 
         return ["ITR payload must be a JSON object."]
 
     # --- Layer 1: Official ITD JSON Schema Validation ---
-    schema_path = get_itd_schema_path(expected_ay)
+    schema_path, schema_sha, is_demo = resolve_itd_schema(expected_ay)
     if not schema_path or not os.path.isfile(schema_path):
-        if not settings.DEMO_MODE:
-            raise FileNotFoundError(
-                f"Official ITD JSON schema file missing for AY {expected_ay or 'default'}. "
-                f"Please place it in backend/app/schemas/itd/. See docs/SANDBOX_ENDPOINTS.md and backend/app/schemas/itd/README.md."
-            )
         logger.warning(
             f"Official ITD schema file missing for AY {expected_ay or 'default'}. "
             "Falling back to built-in business checks because DEMO_MODE=True."
@@ -932,7 +1028,7 @@ def validate_itr1_schema(itr_data: Dict[str, Any], expected_ay: Optional[str] = 
         _validate_handwritten_fallback(itr_data, errors, expected_ay)
     else:
         try:
-            schema = load_itd_schema(schema_path)
+            schema = load_itd_schema(schema_path, schema_sha)
             validator = jsonschema.Draft7Validator(schema)
             for err in sorted(validator.iter_errors(itr_data), key=lambda e: list(e.path)):
                 loc = " -> ".join(str(p) for p in err.path) if err.path else "root"
