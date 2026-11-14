@@ -365,7 +365,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-2 font-semibold text-slate-700">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Govt. Authorized ERI Partner</span>
+            <span>Tax Preparation Platform</span>
           </div>
         </div>
 
@@ -457,7 +457,7 @@ export default function DashboardPage() {
       {/* ============================================================ */}
       <div className="pt-8 border-t border-slate-200 text-[11px] text-slate-400 leading-relaxed space-y-3">
         <p>
-          NexTax (OFS Taxation) is an authorized electronic tax preparation platform integrated with official Government e-Return Intermediary (ERI) infrastructure. E-filing services and data synchronization with the Income Tax Department are executed via certified Sandbox.co.in protocols adhering to the Electronic Furnishing of Returns Scheme.
+          NexTax (OFS Taxation) is an electronic tax preparation platform integrated with developer API infrastructure. E-filing services and data synchronization are executed via Sandbox.co.in API protocols.
         </p>
         <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
           <div className="flex items-center gap-4 text-slate-500">

@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { UploadCloud, File, CheckCircle2, ShieldCheck, ArrowRight, Loader2, KeyRound } from 'lucide-react';
+import React, { useState } from 'react';
+import { UploadCloud, CheckCircle2, ShieldCheck, ArrowRight } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import Link from 'next/link';
+import { motion } from 'framer-motion';
 
 export default function UploadPage() {
   const [isDragging, setIsDragging] = useState(false);
@@ -13,68 +14,12 @@ export default function UploadPage() {
   const [status, setStatus] = useState<'idle' | 'uploading' | 'parsing' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
   
-  // OTP Fetch State
-  const [otpMode, setOtpMode] = useState<'idle' | 'requesting' | 'enter_otp' | 'verifying' | 'success'>('idle');
-  const [otp, setOtp] = useState('');
-  const [pan, setPan] = useState('');
-  
   const router = useRouter();
-
-  useEffect(() => {
-    const verifiedPan = localStorage.getItem('verified_pan');
-    if (verifiedPan) setPan(verifiedPan);
-  }, []);
 
   const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
   const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); };
 
-  // --- 1. AADHAAR OTP FETCH LOGIC ---
-  const requestAadhaarOTP = async () => {
-    setOtpMode('requesting');
-    try {
-      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const res = await fetch(`${API_URL}/api/itr/generate-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ pan_number: pan || 'ABCDE1234F', otp: '' })
-      });
-      if (!res.ok) throw new Error("Failed to send OTP");
-      setOtpMode('enter_otp');
-    } catch (err) {
-      alert("Error sending OTP. Please upload documents manually.");
-      setOtpMode('idle');
-    }
-  };
-
-  const verifyAadhaarOTP = async () => {
-    setOtpMode('verifying');
-    try {
-      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const res = await fetch(`${API_URL}/api/itr/prefill`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ pan_number: pan || 'ABCDE1234F', otp })
-      });
-      if (!res.ok) throw new Error("Failed to verify OTP");
-      
-      const data = await res.json();
-      // Simulating merging government data into our tax profile
-      localStorage.setItem('parsedTaxData', JSON.stringify({
-         gross_salary: data.salary_income || 1200000,
-         tds_deducted: data.tds_deducted || 50000,
-         pan: pan || data.pan
-      }));
-      setOtpMode('success');
-      setTimeout(() => router.push('/review'), 2000);
-    } catch (err) {
-      alert("Invalid OTP.");
-      setOtpMode('enter_otp');
-    }
-  };
-
-  // --- 2. FILE UPLOAD LOGIC ---
+  // --- FILE UPLOAD LOGIC ---
   const uploadAndParseFile = async (uploadedFile: File) => {
     setStatus('uploading');
     setErrorMessage('');
@@ -134,47 +79,29 @@ export default function UploadPage() {
 
       <div className="grid md:grid-cols-2 gap-8">
         
-        {/* Government Auto-Fetch Box */}
+        {/* Government Auto-Fetch Box (routes directly to dedicated single-point OTP verification) */}
         <div className="bg-gradient-to-b from-indigo-50 to-white rounded-3xl border-2 border-indigo-100 p-8 flex flex-col justify-between shadow-sm">
            <div>
              <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center mb-6">
                <ShieldCheck className="w-6 h-6 text-indigo-600" />
              </div>
-             <h3 className="text-xl font-bold text-slate-800 mb-2">Auto-Fetch (Recommended)</h3>
-             <p className="text-slate-600 mb-6 text-sm leading-relaxed">Connect to the Income Tax Department via Aadhaar OTP to automatically download your Form 26AS, AIS, and TIS.</p>
+             <h3 className="text-xl font-bold text-slate-800 mb-2">Government Auto-Fetch</h3>
+             <p className="text-slate-600 mb-6 text-sm leading-relaxed">
+               Connect to the Income Tax Department via Aadhaar OTP to automatically download your Form 26AS, AIS, and TIS in our secure verification flow.
+             </p>
            </div>
 
-           <AnimatePresence mode="wait">
-             {otpMode === 'idle' && (
-                <motion.button key="btn1" onClick={requestAadhaarOTP} className="w-full py-3.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-md shadow-indigo-600/20">
-                  Send Aadhaar OTP
-                </motion.button>
-             )}
-             {otpMode === 'requesting' && (
-                <motion.button key="btn2" disabled className="w-full py-3.5 bg-indigo-400 text-white rounded-xl font-bold flex items-center justify-center gap-2">
-                  <Loader2 className="animate-spin w-5 h-5" /> Connecting to ITD...
-                </motion.button>
-             )}
-             {otpMode === 'enter_otp' && (
-                <motion.div key="btn3" className="space-y-3">
-                  <div className="relative">
-                    <KeyRound className="absolute left-4 top-3.5 text-slate-400 w-5 h-5" />
-                    <input type="text" maxLength={6} placeholder="Enter 6-digit OTP" className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-indigo-200 focus:ring-2 focus:ring-indigo-600 outline-none text-center font-bold tracking-widest text-lg" value={otp} onChange={e => setOtp(e.target.value)} />
-                  </div>
-                  <button onClick={verifyAadhaarOTP} className="w-full py-3.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors">Verify & Fetch Data</button>
-                </motion.div>
-             )}
-             {otpMode === 'verifying' && (
-                <motion.div key="btn4" className="w-full py-3.5 bg-indigo-100 text-indigo-700 rounded-xl font-bold flex items-center justify-center gap-2">
-                  <Loader2 className="animate-spin w-5 h-5" /> Downloading AIS...
-                </motion.div>
-             )}
-             {otpMode === 'success' && (
-                <motion.div key="btn5" className="w-full py-3.5 bg-emerald-100 text-emerald-700 rounded-xl font-bold flex items-center justify-center gap-2">
-                  <CheckCircle2 className="w-5 h-5" /> Data Fetched Successfully!
-                </motion.div>
-             )}
-           </AnimatePresence>
+           <div>
+             <Link
+               href="/verify-pan"
+               className="w-full py-3.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2"
+             >
+               Start PAN &amp; Aadhaar Flow <ArrowRight className="w-4 h-4" />
+             </Link>
+             <p className="text-xs text-slate-400 text-center mt-3">
+               Uses single-session OTP authentication
+             </p>
+           </div>
         </div>
 
         {/* Manual Upload Box */}

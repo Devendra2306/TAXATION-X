@@ -173,32 +173,46 @@ export default function StartFilingWorkflowPage() {
       });
 
       const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErrorMessage(data.detail || 'PAN verification failed. Please verify your details.');
+        return;
+      }
 
       // Store PAN in localStorage
       localStorage.setItem('verified_pan', cleanPan);
       const displayName = data.name || nameAsPerPan || 'Taxpayer';
       setVerifiedName(displayName);
       localStorage.setItem('verified_name', displayName);
+      if (data.simulated) {
+        localStorage.setItem('is_simulated_filing', 'true');
+      } else {
+        localStorage.removeItem('is_simulated_filing');
+      }
 
       // Trigger Aadhaar/ITD OTP call
-      await fetch(`${API_URL}/api/itr/generate-otp`, {
+      const otpRes = await fetch(`${API_URL}/api/itr/generate-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({ pan_number: cleanPan })
-      }).catch(() => {});
+      });
+      if (!otpRes.ok) {
+        const otpErr = await otpRes.json().catch(() => ({}));
+        setErrorMessage(otpErr.detail || 'Failed to send ITD Aadhaar OTP. Please try again.');
+        return;
+      }
+      const otpData = await otpRes.json().catch(() => ({}));
+      if (otpData.simulated) {
+        localStorage.setItem('is_simulated_filing', 'true');
+      }
 
-      // Advance to OTP Step (Image 2)
+      // Advance to OTP Step
       setResendTimer(150);
       setCurrentStep('pan_otp');
     } catch (err: any) {
-      // Graceful fallback for offline / mock testing: continue flow
-      localStorage.setItem('verified_pan', cleanPan);
-      setVerifiedName(nameAsPerPan || 'Taxpayer');
-      setResendTimer(150);
-      setCurrentStep('pan_otp');
+      setErrorMessage(err?.message || 'Network error occurred during PAN verification. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -260,50 +274,40 @@ export default function StartFilingWorkflowPage() {
         })
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        localStorage.setItem(
-          'parsedTaxData',
-          JSON.stringify({
-            gross_salary: data.gross_salary || 1250000,
-            deductions_80c: data.deductions_80c || 150000,
-            tds_deducted: data.tds_deducted || 95000,
-            employer_name: data.employer_name || 'Government ITD Record',
-            pan: panNumber.toUpperCase()
-          })
-        );
-      } else {
-        // Fallback default simulation so user isn't blocked
-        localStorage.setItem(
-          'parsedTaxData',
-          JSON.stringify({
-            gross_salary: 1450000,
-            deductions_80c: 150000,
-            tds_deducted: 112000,
-            employer_name: 'ITD Prefill Record',
-            pan: panNumber.toUpperCase()
-          })
-        );
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        setErrorMessage(errData.detail || 'Failed to verify OTP or fetch prefill data from Income Tax Department.');
+        setCurrentStep('itd_otp');
+        setLoading(false);
+        return;
       }
 
-      // Finish 5s sync animation then navigate to review page
-      setTimeout(() => {
-        router.push('/review');
-      }, 2500);
-    } catch {
+      const data = await res.json();
+      if (data.simulated) {
+        localStorage.setItem('is_simulated_filing', 'true');
+      } else {
+        localStorage.removeItem('is_simulated_filing');
+      }
+
       localStorage.setItem(
         'parsedTaxData',
         JSON.stringify({
-          gross_salary: 1450000,
-          deductions_80c: 150000,
-          tds_deducted: 112000,
-          employer_name: 'ITD Prefill Record',
-          pan: panNumber.toUpperCase()
+          gross_salary: data.gross_salary || 0,
+          deductions_80c: data.deductions_80c || 0,
+          tds_deducted: data.tds_deducted || 0,
+          employer_name: data.employer_name || '',
+          pan: panNumber.toUpperCase(),
+          simulated: Boolean(data.simulated)
         })
       );
+
       setTimeout(() => {
         router.push('/review');
       }, 2500);
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Failed to connect to ITD data service. Please try again.');
+      setCurrentStep('itd_otp');
+      setLoading(false);
     }
   };
 
@@ -944,7 +948,7 @@ export default function StartFilingWorkflowPage() {
             </div>
             <div className="flex items-center gap-1.5 font-semibold text-slate-700">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Govt. Authorized ERI License</span>
+              <span>Secure Tax Preparation Platform</span>
             </div>
           </div>
 

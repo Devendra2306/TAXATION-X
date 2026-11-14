@@ -28,6 +28,7 @@ export default function ExportPage() {
   const [efileStatus, setEfileStatus] = useState<'idle' | 'submitting' | 'success'>('idle');
   const [ackDetails, setAckDetails] = useState<any>(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isSimulated, setIsSimulated] = useState(false);
 
   // Taxpayer details from local storage
   const [pan, setPan] = useState('');
@@ -52,24 +53,26 @@ export default function ExportPage() {
       // Check if already filed in this session
       const alreadyFiled = localStorage.getItem('itr_filed') === 'true';
       const storedAck = localStorage.getItem('ack_number');
+      const sim = localStorage.getItem('is_simulated_filing') === 'true';
+      setIsSimulated(sim);
+
       if (alreadyFiled && storedAck) {
         setAckDetails({
           ack_number: storedAck,
           date: localStorage.getItem('ack_date') || 'Today',
           form: 'ITR-1 (Sahaj)',
-          status: 'Filed & e-Verified'
+          status: sim ? 'Submitted (Demo Mode)' : 'Submitted'
         });
         setEfileStatus('success');
       }
     }
   }, []);
 
-  // 1. Direct 1-Click E-Filing via Sandbox ERI
+  // 1. Direct 1-Click E-Filing via Sandbox API
   const handleDirectEfile = async () => {
     setEfileStatus('submitting');
     setErrorMessage('');
 
-    const generatedAck = `ACK${Math.floor(1000000000 + Math.random() * 9000000000)}`;
     const currentDate = new Date().toLocaleDateString('en-IN', {
       day: 'numeric',
       month: 'short',
@@ -96,13 +99,32 @@ export default function ExportPage() {
       });
 
       const data = await res.json().catch(() => ({}));
-      const ackNum = (res.ok && data.status === 'SUCCESS' && data.ack_number) ? data.ack_number : generatedAck;
+      if (!res.ok) {
+        setErrorMessage(data.detail || 'ITR submission failed. Please check your return and retry.');
+        setEfileStatus('idle');
+        return;
+      }
+
+      const ackNum = data.ack_number;
+      if (!ackNum) {
+        setErrorMessage('Filing submission did not return an acknowledgement number.');
+        setEfileStatus('idle');
+        return;
+      }
+
+      if (data.simulated) {
+        localStorage.setItem('is_simulated_filing', 'true');
+        setIsSimulated(true);
+      } else {
+        localStorage.removeItem('is_simulated_filing');
+        setIsSimulated(false);
+      }
 
       const ackInfo = {
         ack_number: ackNum,
         date: currentDate,
         form: 'ITR-1 (Sahaj)',
-        status: 'Filed & e-Verified'
+        status: data.simulated ? 'Submitted (Demo Mode)' : 'Submitted'
       };
 
       localStorage.setItem('itr_filed', 'true');
@@ -111,20 +133,9 @@ export default function ExportPage() {
 
       setAckDetails(ackInfo);
       setEfileStatus('success');
-    } catch {
-      const ackInfo = {
-        ack_number: generatedAck,
-        date: currentDate,
-        form: 'ITR-1 (Sahaj)',
-        status: 'Filed & e-Verified'
-      };
-
-      localStorage.setItem('itr_filed', 'true');
-      localStorage.setItem('ack_number', generatedAck);
-      localStorage.setItem('ack_date', currentDate);
-
-      setAckDetails(ackInfo);
-      setEfileStatus('success');
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Network error during filing submission. Please retry.');
+      setEfileStatus('idle');
     }
   };
 
@@ -150,7 +161,7 @@ export default function ExportPage() {
               CreationInfo: {
                 SWVersionNo: '1.0',
                 SWCreatedBy: 'NexTax Platform',
-                XMLCreatedBy: 'NexTax ERI',
+                XMLCreatedBy: 'NexTax',
                 XMLCreationDate: new Date().toISOString().split('T')[0],
                 IntermediaryCity: 'Bangalore'
               },
@@ -229,6 +240,39 @@ export default function ExportPage() {
           Submit directly to the Income Tax Department with 1-click E-Filing, or download the official JSON file.
         </p>
       </div>
+
+      {/* PERSISTENT DEMO BANNER */}
+      {isSimulated && (
+        <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl text-amber-900 flex items-start gap-3 shadow-xs">
+          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <h4 className="font-bold text-sm">DEMO DATA, not filed with the Income Tax Department</h4>
+            <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+              This filing session is operating in simulation mode. No actual return will be or has been submitted to Income Tax Department servers.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ERROR MESSAGE BANNER */}
+      {errorMessage && (
+        <div className="p-4 bg-rose-50 border border-rose-300 rounded-2xl text-rose-900 flex items-start justify-between gap-3 shadow-xs">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-bold text-sm">Filing Submission Failed</h4>
+              <p className="text-xs text-rose-700 mt-0.5">{errorMessage}</p>
+            </div>
+          </div>
+          <button
+            onClick={handleDirectEfile}
+            disabled={efileStatus === 'submitting'}
+            className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-colors shrink-0"
+          >
+            Retry Submission
+          </button>
+        </div>
+      )}
 
       {/* SUCCESS RECEIPT STATE (When e-Filing Succeeds) */}
       <AnimatePresence>
@@ -362,7 +406,7 @@ export default function ExportPage() {
               <div>
                 <h3 className="text-lg font-bold text-slate-900">1-Click Direct E-Filing</h3>
                 <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  Submit directly to the Income Tax Department servers via our certified ERI gateway. Receive your instant acknowledgement number (ITR-V).
+                  Submit directly to the Income Tax Department servers via secure tax API gateway. Receive your instant acknowledgement number (ITR-V).
                 </p>
               </div>
 

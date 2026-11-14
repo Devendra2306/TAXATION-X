@@ -1,13 +1,41 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+import threading
+from datetime import date
 from typing import Dict, Any
+from fastapi import APIRouter, Depends, HTTPException, status, Request
+from sqlalchemy.orm import Session
 
 from app.schemas.itr import OTPRequest, OTPVerify, FilingRequest, PrefillDataResponse
 from app.services import eri_service
 from app.routers.auth import get_current_user
 from app.models.user import User
+from app.database import get_db
 from app.main_limiter import limiter
 
 router = APIRouter(prefix="/api/itr", tags=["ITR E-Filing"])
+
+# Per-user daily OTP limit tracking
+_otp_lock = threading.Lock()
+_user_daily_otp_count: Dict[str, int] = {}
+MAX_DAILY_OTP_PER_USER = 5
+
+
+def check_and_increment_user_otp(user_id: int):
+    today_key = f"{user_id}:{date.today().isoformat()}"
+    with _otp_lock:
+        count = _user_daily_otp_count.get(today_key, 0)
+        if count >= MAX_DAILY_OTP_PER_USER:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Daily OTP request limit reached ({MAX_DAILY_OTP_PER_USER} per day). Please try again tomorrow."
+            )
+        _user_daily_otp_count[today_key] = count + 1
+
+
+def reset_user_otp_count_for_testing():
+    """Helper for testing daily limit logic."""
+    with _otp_lock:
+        _user_daily_otp_count.clear()
+
 
 @router.post("/verify-pan")
 async def verify_pan(request: OTPRequest, current_user: User = Depends(get_current_user)):
@@ -22,20 +50,19 @@ async def verify_pan(request: OTPRequest, current_user: User = Depends(get_curre
     )
     return result
 
+
 @router.post("/generate-otp")
 @limiter.limit("3/minute")
 async def generate_otp(request: Request, otp_request: OTPRequest, current_user: User = Depends(get_current_user)):
     """
     Trigger Aadhaar/ITD OTP to fetch prefill data or e-verify.
-    Rate limited to 3 attempts per minute to prevent OTP flooding.
+    Rate limited to 3 attempts per minute to prevent OTP flooding,
+    and capped at 5 requests per user per day.
     """
-    success = await eri_service.request_aadhaar_otp(otp_request.pan_number)
-    if success:
-        return {"message": "OTP sent successfully to registered mobile number"}
-    raise HTTPException(status_code=500, detail="Failed to send OTP")
+    check_and_increment_user_otp(current_user.id)
+    result = await eri_service.request_aadhaar_otp(otp_request.pan_number)
+    return result
 
-from sqlalchemy.orm import Session
-from app.database import get_db
 
 @router.post("/prefill", response_model=PrefillDataResponse)
 async def fetch_prefill(request: OTPVerify, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -60,6 +87,7 @@ async def fetch_prefill(request: OTPVerify, current_user: User = Depends(get_cur
     db.commit()
     
     return data
+
 
 @router.post("/submit")
 async def submit_tax_return(request: FilingRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):

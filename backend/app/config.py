@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     EXTERNAL_API_KEY: str = ""
     EXTERNAL_API_SECRET: str = ""
     
+    # Demonstration Mode (when False, strict honest errors are raised; when True, safe simulation fallbacks are allowed)
+    DEMO_MODE: bool = False
+    
     # PayU Payment Gateway Test Credentials
     PAYU_KEY: str = "BH6b9r"
     PAYU_SALT: str = "SdXEkaKbj0fJqijOYSF6mmfCQtqfrVmf"

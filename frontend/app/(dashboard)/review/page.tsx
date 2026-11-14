@@ -39,14 +39,15 @@ export default function TaxSummaryReviewPage() {
 
   // User & Tax Profile State
   const [userName, setUserName] = useState('Taxpayer');
+  const [isSimulated, setIsSimulated] = useState(false);
   const [profileData, setProfileData] = useState({
-    gross_salary: 1250000,
-    deductions_80c: 150000,
-    tds_deducted: 95000,
+    gross_salary: 0,
+    deductions_80c: 0,
+    tds_deducted: 0,
     home_loan_interest: 0,
     capital_gains: 0,
-    other_income: 448,
-    employer_name: 'Employer Ltd.',
+    other_income: 0,
+    employer_name: '',
     pan: ''
   });
 
@@ -112,6 +113,8 @@ export default function TaxSummaryReviewPage() {
   // Load profile from API and localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      const sim = localStorage.getItem('is_simulated_filing') === 'true';
+      setIsSimulated(sim);
       const storedPan = localStorage.getItem('verified_pan');
       const storedName = localStorage.getItem('verified_name');
       const parsedTaxStr = localStorage.getItem('parsedTaxData');
@@ -779,7 +782,7 @@ export default function TaxSummaryReviewPage() {
       {/* ============================================================ */}
       <div className="pt-6 border-t border-slate-200 text-[11px] text-slate-400 leading-relaxed space-y-3">
         <p>
-          NexTax (OFS Taxation) is an authorized electronic tax preparation platform integrated with official Government e-Return Intermediary (ERI) infrastructure. E-filing services and data synchronization with the Income Tax Department are executed via certified Sandbox.co.in protocols adhering to the Electronic Furnishing of Returns Scheme.
+          NexTax (OFS Taxation) is an electronic tax preparation platform integrated with developer API infrastructure. E-filing services and data synchronization are executed via Sandbox.co.in API protocols.
         </p>
         <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
           <div className="flex items-center gap-4 text-slate-500">

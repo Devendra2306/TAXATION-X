@@ -29,4 +29,5 @@ class PrefillDataResponse(BaseModel):
     deductions_80c: float = 0
     tds_deducted: float = 0
     employer_name: str = ""
+    simulated: bool = False
     raw_sandbox_data: Optional[Dict[str, Any]] = None
