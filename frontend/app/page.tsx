@@ -188,10 +188,10 @@ export default function LandingPage() {
               
               <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar">
                 {[
-                  { tag: 'Income Tax', title: 'CBDT Extends Due Date for Filing ITR for AY 2025-26', date: 'May 22, 2024', color: 'text-blue-600 bg-blue-50 ring-blue-500/20' },
-                  { tag: 'GST', title: 'GST Council Recommends Changes in Return Filing Rules', date: 'May 21, 2024', color: 'text-purple-600 bg-purple-50 ring-purple-500/20' },
-                  { tag: 'Finance', title: 'TDS on Rent: New Rule Clarification by CBDT', date: 'May 20, 2024', color: 'text-emerald-600 bg-emerald-50 ring-emerald-500/20' },
-                  { tag: 'Income Tax', title: 'New ITR Forms Notified for FY 2024-25', date: 'May 18, 2024', color: 'text-blue-600 bg-blue-50 ring-blue-500/20' },
+                  { tag: 'Income Tax', title: 'CBDT Notifies Revised Slabs & ₹12.75L Zero-Tax Threshold for AY 2026-27', date: 'Feb 15, 2025', color: 'text-blue-600 bg-blue-50 ring-blue-500/20' },
+                  { tag: 'GST', title: 'GST Council Recommends Streamlined Automated Return Filing Rules', date: 'Feb 10, 2025', color: 'text-purple-600 bg-purple-50 ring-purple-500/20' },
+                  { tag: 'Finance', title: 'Standard Deduction Raised to ₹75,000 for FY 2025-26 under New Regime', date: 'Feb 05, 2025', color: 'text-emerald-600 bg-emerald-50 ring-emerald-500/20' },
+                  { tag: 'Income Tax', title: 'New ITR-1 to ITR-4 Utilities Released for AY 2026-27', date: 'Jan 28, 2025', color: 'text-blue-600 bg-blue-50 ring-blue-500/20' },
                 ].map((update, i) => (
                   <Link href="/tax-calculator" key={i} className="flex gap-4 group cursor-pointer border-b border-slate-100 pb-6 last:border-0 last:pb-0">
                     <div className="w-12 h-12 rounded-xl bg-slate-50 flex-shrink-0 flex items-center justify-center border border-slate-100 group-hover:border-indigo-200 group-hover:bg-indigo-50 transition-colors">

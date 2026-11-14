@@ -17,8 +17,8 @@ gemini_model = None
 if settings.GEMINI_API_KEY and settings.GEMINI_API_KEY.strip():
     try:
         genai.configure(api_key=settings.GEMINI_API_KEY.strip())
-        gemini_model = genai.GenerativeModel('gemini-3.8-flash')
-        logger.info("Gemini 3.8 Flash AI engine initialized successfully for NexTax Chat.")
+        gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+        logger.info("Gemini AI engine initialized successfully for NexTax Chat.")
     except Exception as e:
         logger.warning(f"Could not initialize Gemini model: {e}")
         gemini_model = None
@@ -33,31 +33,34 @@ class ChatRequest(BaseModel):
 
 def get_ca_expert_fallback(query: str, context: Optional[dict] = None) -> str:
     """
-    Intelligent CA tax advisor fallback engine for FY 2024-25 / AY 2025-26.
+    Intelligent CA tax advisor fallback engine for FY 2025-26 / AY 2026-27.
     Ensures users ALWAYS receive expert, structured guidance even if external AI is offline.
     """
     q = query.lower()
 
     if any(k in q for k in ["regime", "old vs new", "which regime", "compare"]):
         return (
-            "### ⚖️ Old vs New Tax Regime (FY 2024-25 / AY 2025-26)\n\n"
+            "### ⚖️ Old vs New Tax Regime (FY 2025-26 / AY 2026-27)\n\n"
             "**1. New Tax Regime (Default u/s 115BAC):**\n"
-            "- **Zero Tax** up to **₹7.75 Lakhs** income (₹7 Lakh rebate u/s 87A + ₹75,000 Standard Deduction).\n"
-            "- Lower slab rates: 0-3L (Nil), 3-7L (5%), 7-10L (10%), 10-12L (15%), 12-15L (20%), Above 15L (30%).\n"
+            "- **Zero Tax** up to **₹12.75 Lakhs** income (₹12 Lakh taxable rebate u/s 87A + ₹75,000 Standard Deduction).\n"
+            "- Slabs: 0-4L (Nil), 4-8L (5%), 8-12L (10%), 12-16L (15%), 16-20L (20%), 20-24L (25%), Above 24L (30%).\n"
+            "- **Section 87A Marginal Relief:** If your taxable income slightly exceeds ₹12 Lakhs, tax payable is capped at the excess income over ₹12 Lakhs.\n"
             "- **Trade-off:** No deductions allowed for 80C, 80D, HRA, or Home Loan Interest on self-occupied property.\n\n"
             "**2. Old Tax Regime:**\n"
-            "- Higher slab rates, but lets you claim all major deductions:\n"
+            "- Traditional slab rates with all major deductions allowed:\n"
+            "  - **Standard Deduction:** ₹50,000 flat for salaried individuals\n"
             "  - **Section 80C:** Up to ₹1.5 Lakhs (EPF, PPF, ELSS, LIC, Home Loan Principal)\n"
             "  - **Section 80D:** ₹25,000 to ₹50,000 (Health Insurance)\n"
             "  - **Section 80CCD(1B):** Additional ₹50,000 for NPS\n"
             "  - **Section 24(b):** Up to ₹2 Lakhs Home Loan Interest\n"
-            "  - **HRA u/s 10(13A):** Tax-free rent allowance\n\n"
-            "💡 **CA Rule of Thumb:** If your total deductions exceed **₹3.75 - ₹4.0 Lakhs**, the **Old Regime** typically saves more. Otherwise, the **New Regime** is superior. Upload your Form 16 to let NexTax calculate your exact rupee savings!"
+            "  - **HRA u/s 10(13A):** Tax-free rent allowance\n"
+            "  - **Section 87A Rebate:** Taxable income up to ₹5 Lakhs pays zero tax.\n\n"
+            "💡 **CA Rule of Thumb:** With the new ₹12.75 Lakh zero-tax threshold, the **New Regime** saves more money for the vast majority of taxpayers. Upload your Form 16 or review your profile to let NexTax compute your exact rupee savings!"
         )
 
     if any(k in q for k in ["80c", "deduction", "save tax", "80d", "nps", "exempt"]):
         return (
-            "### 💰 Key Tax Deductions (Under Old Regime - FY 2024-25)\n\n"
+            "### 💰 Key Tax Deductions (Under Old Regime - FY 2025-26 / AY 2026-27)\n\n"
             "1. **Section 80C (Max ₹1.50 Lakhs):**\n"
             "   - Employee Provident Fund (EPF) & Public Provident Fund (PPF)\n"
             "   - ELSS Mutual Funds (3-year lock-in)\n"
@@ -90,10 +93,10 @@ def get_ca_expert_fallback(query: str, context: Optional[dict] = None) -> str:
 
     if any(k in q for k in ["capital gain", "stcg", "ltcg", "shares", "stocks", "mutual fund"]):
         return (
-            "### 📈 Capital Gains Tax Rates (Budget 2024 Updates)\n\n"
+            "### 📈 Capital Gains Tax Rates (Budget Updates)\n\n"
             "**1. Listed Equity & Equity Mutual Funds:**\n"
-            "- **Short Term (STCG - Held < 12 months):** Taxed at **20%** (increased from 15%).\n"
-            "- **Long Term (LTCG - Held > 12 months):** Taxed at **12.5%** for gains exceeding **₹1.25 Lakhs** per year (exemption limit raised from ₹1L).\n\n"
+            "- **Short Term (STCG - Held < 12 months):** Taxed at **20%**.\n"
+            "- **Long Term (LTCG - Held > 12 months):** Taxed at **12.5%** for gains exceeding **₹1.25 Lakhs** per year.\n\n"
             "**2. Real Estate / Immovable Property:**\n"
             "- Long term holding period: 24 months.\n"
             "- Taxed at **12.5% without indexation** (or optional 20% with indexation for properties bought before July 23, 2024).\n\n"
@@ -129,9 +132,9 @@ def get_ca_expert_fallback(query: str, context: Optional[dict] = None) -> str:
 
     return (
         f"### 👨‍💼 NexTax CA AI Advisor\n\n"
-        f"I can assist you with all Indian Income Tax matters for **FY 2024-25 (AY 2025-26)**.\n\n"
+        f"I can assist you with all Indian Income Tax matters for **FY 2025-26 (AY 2026-27)**.\n\n"
         f"**Popular Topics I can help with:**\n"
-        f"- ⚖️ **Old vs New Regime:** Find which regime saves you more money.\n"
+        f"- ⚖️ **Old vs New Regime:** Compare both regimes under AY 2026-27 rules (Zero tax up to ₹12.75L in New Regime).\n"
         f"- 💰 **Tax Deductions:** Maximize 80C, 80D, 80CCD, HRA, and Home Loan benefits.\n"
         f"- 📄 **Form 16 & TDS:** Verify your TDS matches Form 26AS/AIS.\n"
         f"- 📈 **Capital Gains:** Rules for stocks, mutual funds, and property.\n"
@@ -150,7 +153,7 @@ def chat_with_expert(
     NexTax AI Assistant endpoint.
     Accessible to both authenticated users and guests.
     - If user is logged in, their tax context is personalized.
-    - Uses Gemini 1.5 Flash when available with CA system prompt.
+    - Uses Gemini AI when available with CA system prompt.
     - Gracefully falls back to high-accuracy CA knowledge base if external AI is unconfigured or rate-limited.
     """
     if not chat_req.messages:
@@ -178,7 +181,8 @@ def chat_with_expert(
             system_instructions = (
                 "You are an expert Indian Chartered Accountant (CA) named NexTax AI. "
                 "You provide concise, highly accurate, structured advice based strictly on Indian Income Tax laws "
-                "for Financial Year 2024-25 (Assessment Year 2025-26). "
+                "for Financial Year 2025-26 (Assessment Year 2026-27). "
+                "Under the New Regime (Section 115BAC), zero tax applies up to ₹12.75 Lakhs income (₹12L rebate + ₹75,000 standard deduction). "
                 "Use formatting like bolding, bullet points, and rupee symbols (₹). "
                 "Be polite, professional, and explain complex tax rules simply."
             )
