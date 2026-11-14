@@ -147,6 +147,29 @@ git rebase --continue    # (or git commit if standard merge)
 
 ---
 
+## 🧪 Automated Testing & Concurrency Verification
+
+### Run Standard Test Suite (SQLite & Unit Tests)
+```bash
+cd backend
+python -m pytest tests -q
+```
+
+### Run Live PostgreSQL Multi-Worker Concurrency Test
+The backend enforces double-submission prevention through database-level `UniqueConstraint("user_id", "assessment_year")` and PostgreSQL row-level locking (`SELECT ... FOR UPDATE`). To run the live 8-worker concurrent race test against PostgreSQL:
+
+```bash
+# 1. Start the PostgreSQL service via docker-compose
+docker compose up -d postgres
+
+# 2. Run the PostgreSQL concurrency test with the test database URL
+cd backend
+TEST_POSTGRES_URL="postgresql://postgres:postgrespassword@localhost:5432/ofs_tax" python -m pytest tests/test_postgres_concurrency.py -v
+```
+*(Note: When `TEST_POSTGRES_URL` is unset, the test is automatically skipped so standard local test runs remain lightweight.)*
+
+---
+
 ## 📋 Corporate Handover & Contact Information
 
 This software is undergoing final enterprise handover to **OFS Taxation Private Limited**.

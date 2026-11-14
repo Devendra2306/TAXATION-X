@@ -3,6 +3,7 @@ from datetime import date, datetime, timezone, timedelta
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.schemas.itr import (
     OTPRequest,
@@ -26,6 +27,12 @@ router = APIRouter(prefix="/api/itr", tags=["ITR E-Filing"])
 
 # Per-user daily OTP limit tracking
 _otp_lock = threading.Lock()
+
+# NOTE: In-process threading lock is an optimization for single-process local development and SQLite tests.
+# It does NOT provide a cross-process guarantee in multi-worker or containerized deployments.
+# Cross-process synchronization is guaranteed by the DB-level UniqueConstraint("user_id", "assessment_year"),
+# row-level locking (SELECT ... FOR UPDATE) on PostgreSQL, and committing the SUBMITTING state before
+# invoking upstream APIs.
 _filing_locks_mutex = threading.Lock()
 _filing_locks: Dict[str, threading.Lock] = {}
 
@@ -254,6 +261,13 @@ async def submit_tax_return(request: FilingRequest, current_user: User = Depends
                 db.add(filing)
                 db.commit()
                 db.refresh(filing)
+            except IntegrityError:
+                db.rollback()
+                filing = (
+                    db.query(Filing)
+                    .filter(Filing.user_id == current_user.id, Filing.assessment_year == request.assessment_year)
+                    .first()
+                )
             except Exception:
                 db.rollback()
                 filing = (
