@@ -1,0 +1,170 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ITD ITR-1 (Sahaj) JSON Schema",
+  "description": "Income Tax Department (CBDT) official schema specification for ITR-1 (Sahaj). Drop in the official Schema.zip JSON file from incometax.gov.in to update.",
+  "type": "object",
+  "required": ["ITR"],
+  "properties": {
+    "ITR": {
+      "type": "object",
+      "required": ["ITR1"],
+      "properties": {
+        "ITR1": {
+          "type": "object",
+          "required": [
+            "CreationInfo",
+            "Form_ITR1",
+            "PersonalInfo",
+            "ITR1_IncomeDeductions",
+            "ITR1_TaxComputation"
+          ],
+          "properties": {
+            "CreationInfo": {
+              "type": "object",
+              "required": ["SWVersionNo", "SWCreatedBy"],
+              "properties": {
+                "SWVersionNo": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "SWCreatedBy": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "XMLCreatedBy": {
+                  "type": "string"
+                },
+                "JSONCreatedBy": {
+                  "type": "string"
+                },
+                "XMLCreationDate": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                "JSONCreationDate": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                "IntermediaryCity": {
+                  "type": "string"
+                }
+              },
+              "anyOf": [
+                { "required": ["XMLCreationDate"] },
+                { "required": ["JSONCreationDate"] }
+              ]
+            },
+            "Form_ITR1": {
+              "type": "object",
+              "required": ["FormName", "AssessmentYear"],
+              "properties": {
+                "FormName": {
+                  "type": "string",
+                  "enum": ["ITR-1"]
+                },
+                "Description": {
+                  "type": "string"
+                },
+                "AssessmentYear": {
+                  "type": "string",
+                  "pattern": "^\\d{4}$"
+                },
+                "SchemaVer": {
+                  "type": "string"
+                }
+              }
+            },
+            "PersonalInfo": {
+              "type": "object",
+              "required": ["AssesseeName", "PAN", "OptingNewTaxRegime"],
+              "properties": {
+                "AssesseeName": {
+                  "type": "object",
+                  "required": ["FirstName"],
+                  "properties": {
+                    "FirstName": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "MiddleName": {
+                      "type": "string"
+                    },
+                    "SurName": {
+                      "type": "string"
+                    },
+                    "SurNameOrOrgName": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "PAN": {
+                  "type": "string",
+                  "pattern": "^[A-Z]{5}[0-9]{4}[A-Z]{1}$"
+                },
+                "OptingNewTaxRegime": {
+                  "type": "string",
+                  "enum": ["Y", "N"]
+                }
+              }
+            },
+            "ITR1_IncomeDeductions": {
+              "type": "object",
+              "required": ["GrossSalary", "TotalIncome"],
+              "properties": {
+                "GrossSalary": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "TotalIncome": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "IncomeFromHouseProperty": {
+                  "type": "number"
+                },
+                "IncomeFromOtherSources": {
+                  "type": "number"
+                },
+                "UsrDeductUndChapVIA": {
+                  "type": "object",
+                  "properties": {
+                    "Section80C": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "TotalChapVIADeductions": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            },
+            "ITR1_TaxComputation": {
+              "type": "object",
+              "required": ["TotalTaxPayable", "TDSClaimed"],
+              "properties": {
+                "TotalTaxPayable": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "TDSClaimed": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "RefundDue": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "TaxPayable": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

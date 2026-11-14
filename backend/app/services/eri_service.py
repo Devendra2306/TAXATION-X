@@ -1,5 +1,8 @@
 import httpx
+import json
+import jsonschema
 import logging
+import os
 import re
 from typing import Optional, Dict, Any
 from fastapi import HTTPException
@@ -795,35 +798,52 @@ def check_itr1_eligibility(
     return True, None
 
 
-def validate_itr1_schema(itr_data: Dict[str, Any], expected_ay: Optional[str] = None) -> list[str]:
-    """
-    Validates ITR-1 JSON data against official Income Tax Department (CBDT) schema specifications:
-    - Root schema integrity: requires 'ITR' -> 'ITR1'
-    - CreationInfo: requires valid creation date format (YYYY-MM-DD), software identifiers
-    - Form_ITR1: FormName must be 'ITR-1', AssessmentYear must match expected AY start year
-    - PersonalInfo: PAN must strictly match ITD regex ^[A-Z]{5}[0-9]{4}[A-Z]{1}$, AssesseeName, regime ('Y'/'N')
-    - IncomeDeductions:
-        * GrossSalary >= 0
-        * Section 80C <= ₹1,50,000 (and must be 0 under new regime)
-        * TotalIncome <= ₹50,00,000 (statutory ITR-1 Sahaj eligibility ceiling)
-    - TaxComputation:
-        * TotalTaxPayable >= 0, TDSClaimed >= 0
-        * Mathematical reconciliation: TaxPayable vs RefundDue must match TotalTaxPayable - TDSClaimed
-    Returns an empty list if valid, or a list of diagnostic error strings if invalid.
-    """
-    errors = []
-    if not isinstance(itr_data, dict):
-        return ["ITR payload must be a JSON object."]
+ITD_SCHEMAS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "schemas", "itd")
+_schema_cache: dict[str, dict] = {}
 
+
+def get_itd_schema_path(expected_ay: Optional[str] = None) -> Optional[str]:
+    """
+    Locates the official ITD JSON schema file for the requested AY.
+    Looks for:
+      1. ITR1_AY{expected_ay}.schema.json (e.g. ITR1_AY2026-27.schema.json)
+      2. ITR1_AY{start_year}.schema.json (e.g. ITR1_AY2026.schema.json)
+      3. ITR1.schema.json (fallback default)
+    """
+    candidates = []
+    if expected_ay:
+        ay_clean = expected_ay.strip()
+        candidates.append(f"ITR1_AY{ay_clean}.schema.json")
+        start_year = ay_clean.split("-")[0]
+        candidates.append(f"ITR1_AY{start_year}.schema.json")
+    candidates.append("ITR1.schema.json")
+
+    for filename in candidates:
+        candidate_path = os.path.join(ITD_SCHEMAS_DIR, filename)
+        if os.path.isfile(candidate_path):
+            return candidate_path
+    return None
+
+
+def load_itd_schema(schema_path: str) -> dict:
+    if schema_path not in _schema_cache:
+        with open(schema_path, "r", encoding="utf-8") as f:
+            _schema_cache[schema_path] = json.load(f)
+    return _schema_cache[schema_path]
+
+
+def _validate_handwritten_fallback(itr_data: Dict[str, Any], errors: list[str], expected_ay: Optional[str] = None):
+    """Fallback structural checks when official schema file is absent in DEMO_MODE."""
     itr = itr_data.get("ITR")
     if not isinstance(itr, dict):
-        return ["Missing root 'ITR' element in payload."]
+        errors.append("Missing root 'ITR' element in payload.")
+        return
 
     itr1 = itr.get("ITR1")
     if not isinstance(itr1, dict):
-        return ["Missing 'ITR1' element inside root 'ITR'."]
+        errors.append("Missing 'ITR1' element inside root 'ITR'.")
+        return
 
-    # 1. CreationInfo Validation
     creation_info = itr1.get("CreationInfo")
     if not isinstance(creation_info, dict):
         errors.append("Missing 'CreationInfo' section in ITR1.")
@@ -836,7 +856,6 @@ def validate_itr1_schema(itr_data: Dict[str, Any], expected_ay: Optional[str] = 
         if not c_date or not re.match(r"^\d{4}-\d{2}-\d{2}$", str(c_date)):
             errors.append(f"Invalid or missing creation date '{c_date}' in CreationInfo; expected YYYY-MM-DD.")
 
-    # 2. Form_ITR1 Validation
     form_itr1 = itr1.get("Form_ITR1")
     if not isinstance(form_itr1, dict):
         errors.append("Missing 'Form_ITR1' section.")
@@ -846,33 +865,21 @@ def validate_itr1_schema(itr_data: Dict[str, Any], expected_ay: Optional[str] = 
         ay = str(form_itr1.get("AssessmentYear") or "")
         if not ay or not re.match(r"^\d{4}$", ay):
             errors.append(f"Invalid AssessmentYear '{ay}' in Form_ITR1; expected 4-digit start year (e.g. '2025').")
-        if expected_ay:
-            expected_start = expected_ay.split("-")[0] if "-" in expected_ay else expected_ay
-            if ay != expected_start:
-                errors.append(
-                    f"AssessmentYear mismatch in filing JSON: Form_ITR1 has '{ay}', "
-                    f"but submitted assessment year is '{expected_ay}' (expected '{expected_start}')."
-                )
 
-    # 3. PersonalInfo Validation
     personal_info = itr1.get("PersonalInfo")
-    regime = "Y"
     if not isinstance(personal_info, dict):
         errors.append("Missing 'PersonalInfo' section.")
     else:
         pan = personal_info.get("PAN")
         if not pan or not re.match(r"^[A-Z]{5}[0-9]{4}[A-Z]{1}$", str(pan)):
             errors.append(f"Invalid or missing PAN '{pan}' in PersonalInfo. Must match ^[A-Z]{5}[0-9]{4}[A-Z]{1}$.")
-
         name = personal_info.get("AssesseeName")
         if not isinstance(name, dict) or not str(name.get("FirstName", "")).strip():
             errors.append("Missing or empty 'AssesseeName.FirstName' in PersonalInfo.")
-
         regime = personal_info.get("OptingNewTaxRegime")
         if regime not in ("Y", "N"):
             errors.append(f"Invalid 'OptingNewTaxRegime' value '{regime}'; must be 'Y' (New Regime) or 'N' (Old Regime).")
 
-    # 4. IncomeDeductions Validation
     inc = itr1.get("ITR1_IncomeDeductions")
     if not isinstance(inc, dict):
         errors.append("Missing 'ITR1_IncomeDeductions' section.")
@@ -880,29 +887,12 @@ def validate_itr1_schema(itr_data: Dict[str, Any], expected_ay: Optional[str] = 
         gross_salary = inc.get("GrossSalary")
         if gross_salary is None or not isinstance(gross_salary, (int, float)) or gross_salary < 0:
             errors.append(f"Invalid GrossSalary '{gross_salary}'; must be a non-negative number.")
-
         total_income = inc.get("TotalIncome")
         if total_income is None or not isinstance(total_income, (int, float)):
             errors.append("Missing or invalid 'TotalIncome' in ITR1_IncomeDeductions.")
         elif total_income < 0:
             errors.append(f"TotalIncome cannot be negative: {total_income}.")
-        elif total_income > 5000000:
-            errors.append(
-                f"TotalIncome ₹{total_income:,.0f} exceeds the statutory ₹50,00,000 threshold for ITR-1 (Sahaj). "
-                "Assessee must file using ITR-2."
-            )
 
-        # Chapter VI-A deductions check
-        chap_via = inc.get("UsrDeductUndChapVIA", {})
-        if isinstance(chap_via, dict):
-            sec_80c = chap_via.get("Section80C", 0)
-            if isinstance(sec_80c, (int, float)):
-                if regime == "Y" and sec_80c > 0:
-                    errors.append(f"Section 80C deductions (₹{sec_80c:,.0f}) are not allowable under the New Tax Regime (Section 115BAC).")
-                elif regime == "N" and sec_80c > 150000:
-                    errors.append(f"Section 80C deductions (₹{sec_80c:,.0f}) exceed the statutory ₹1,50,000 cap.")
-
-    # 5. TaxComputation & Mathematical Reconciliation Validation
     tax_comp = itr1.get("ITR1_TaxComputation")
     if not isinstance(tax_comp, dict):
         errors.append("Missing 'ITR1_TaxComputation' section.")
@@ -910,23 +900,107 @@ def validate_itr1_schema(itr_data: Dict[str, Any], expected_ay: Optional[str] = 
         tax_payable = tax_comp.get("TotalTaxPayable")
         if tax_payable is None or not isinstance(tax_payable, (int, float)) or tax_payable < 0:
             errors.append(f"Invalid TotalTaxPayable '{tax_payable}'; must be a non-negative number.")
-
         tds = tax_comp.get("TDSClaimed")
         if tds is None or not isinstance(tds, (int, float)) or tds < 0:
             errors.append(f"Invalid TDSClaimed '{tds}'; must be a non-negative number.")
 
-        refund_due = tax_comp.get("RefundDue")
-        balance_payable = tax_comp.get("TaxPayable")
-        if refund_due is not None and balance_payable is not None:
+
+def validate_itr1_schema(itr_data: Dict[str, Any], expected_ay: Optional[str] = None) -> list[str]:
+    """
+    Validates ITR-1 JSON data against official Income Tax Department (CBDT) JSON schema
+    specifications using jsonschema, followed by layered statutory business-logic rules:
+      Layer 1: Structural JSON Schema Validation (jsonschema.Draft7Validator against official schema file)
+      Layer 2: Statutory Business-Logic Checks (AY consistency, income ceiling <= 50L, 80C regime cap, tax reconciliation)
+    Returns an empty list if valid, or a list of diagnostic error strings if invalid.
+    """
+    errors: list[str] = []
+    if not isinstance(itr_data, dict):
+        return ["ITR payload must be a JSON object."]
+
+    # --- Layer 1: Official ITD JSON Schema Validation ---
+    schema_path = get_itd_schema_path(expected_ay)
+    if not schema_path or not os.path.isfile(schema_path):
+        if not settings.DEMO_MODE:
+            raise FileNotFoundError(
+                f"Official ITD JSON schema file missing for AY {expected_ay or 'default'}. "
+                f"Please place it in backend/app/schemas/itd/. See docs/SANDBOX_ENDPOINTS.md and backend/app/schemas/itd/README.md."
+            )
+        logger.warning(
+            f"Official ITD schema file missing for AY {expected_ay or 'default'}. "
+            "Falling back to built-in business checks because DEMO_MODE=True."
+        )
+        _validate_handwritten_fallback(itr_data, errors, expected_ay)
+    else:
+        try:
+            schema = load_itd_schema(schema_path)
+            validator = jsonschema.Draft7Validator(schema)
+            for err in sorted(validator.iter_errors(itr_data), key=lambda e: list(e.path)):
+                loc = " -> ".join(str(p) for p in err.path) if err.path else "root"
+                errors.append(f"Schema validation error at [{loc}]: {err.message}")
+        except Exception as e:
+            errors.append(f"JSON schema validation execution error: {e}")
+
+    # --- Layer 2: Statutory Business-Logic Rules ---
+    itr = itr_data.get("ITR")
+    itr1 = itr.get("ITR1") if isinstance(itr, dict) else None
+
+    if isinstance(itr1, dict):
+        form_itr1 = itr1.get("Form_ITR1")
+        if isinstance(form_itr1, dict):
+            ay = str(form_itr1.get("AssessmentYear") or "")
+            if expected_ay:
+                expected_start = expected_ay.split("-")[0] if "-" in expected_ay else expected_ay
+                if ay and ay != expected_start:
+                    errors.append(
+                        f"AssessmentYear mismatch in filing JSON: Form_ITR1 has '{ay}', "
+                        f"but submitted assessment year is '{expected_ay}' (expected '{expected_start}')."
+                    )
+
+        personal_info = itr1.get("PersonalInfo", {})
+        regime = personal_info.get("OptingNewTaxRegime") if isinstance(personal_info, dict) else "Y"
+
+        inc = itr1.get("ITR1_IncomeDeductions", {})
+        if isinstance(inc, dict):
+            total_income = inc.get("TotalIncome")
+            if isinstance(total_income, (int, float)) and total_income > 5000000:
+                errors.append(
+                    f"TotalIncome ₹{total_income:,.0f} exceeds the statutory ₹50,00,000 threshold for ITR-1 (Sahaj). "
+                    "Assessee must file using ITR-2."
+                )
+
+            chap_via = inc.get("UsrDeductUndChapVIA", {})
+            if isinstance(chap_via, dict):
+                sec_80c = chap_via.get("Section80C", 0)
+                if isinstance(sec_80c, (int, float)):
+                    if regime == "Y" and sec_80c > 0:
+                        errors.append(
+                            f"Section 80C deductions (₹{sec_80c:,.0f}) are not allowable under the New Tax Regime (Section 115BAC)."
+                        )
+                    elif regime == "N" and sec_80c > 150000:
+                        errors.append(
+                            f"Section 80C deductions (₹{sec_80c:,.0f}) exceed the statutory ₹1,50,000 cap."
+                        )
+
+        tax_comp = itr1.get("ITR1_TaxComputation", {})
+        if isinstance(tax_comp, dict):
+            tax_payable = tax_comp.get("TotalTaxPayable")
+            tds = tax_comp.get("TDSClaimed")
+            refund_due = tax_comp.get("RefundDue")
+            balance_payable = tax_comp.get("TaxPayable")
             if isinstance(tax_payable, (int, float)) and isinstance(tds, (int, float)):
                 expected_balance = max(0, tax_payable - tds)
                 expected_refund = max(0, tds - tax_payable)
-                if abs(balance_payable - expected_balance) > 1.0:
-                    errors.append(f"TaxPayable (₹{balance_payable}) does not reconcile with TotalTaxPayable (₹{tax_payable}) - TDSClaimed (₹{tds}). Expected ₹{expected_balance}.")
-                if abs(refund_due - expected_refund) > 1.0:
-                    errors.append(f"RefundDue (₹{refund_due}) does not reconcile with TDSClaimed (₹{tds}) - TotalTaxPayable (₹{tax_payable}). Expected ₹{expected_refund}.")
+                if balance_payable is not None and abs(balance_payable - expected_balance) > 1.0:
+                    errors.append(
+                        f"TaxPayable (₹{balance_payable}) does not reconcile with TotalTaxPayable (₹{tax_payable}) - TDSClaimed (₹{tds}). Expected ₹{expected_balance}."
+                    )
+                if refund_due is not None and abs(refund_due - expected_refund) > 1.0:
+                    errors.append(
+                        f"RefundDue (₹{refund_due}) does not reconcile with TDSClaimed (₹{tds}) - TotalTaxPayable (₹{tax_payable}). Expected ₹{expected_refund}."
+                    )
 
     return errors
+
 
 async def check_upstream_filing_status(pan_number: str, assessment_year: str) -> dict:
     """

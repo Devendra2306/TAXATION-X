@@ -293,42 +293,9 @@ def test_concurrent_first_submits_only_call_sandbox_once(db_session, sample_user
     Thanks to the filing mutex lock and atomic creation, exactly ONE call to Sandbox is executed.
     """
     import time
-    from sqlalchemy.pool import StaticPool
 
-    # Engine for thread-shared in-memory SQLite
-    engine = create_engine(
-        TEST_DATABASE_URL,
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool
-    )
-    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    Base.metadata.create_all(bind=engine)
-
-    # Re-insert user and dependencies into this thread-safe shared DB
-    session = TestingSessionLocal()
-    user = User(id=1, email="devendra@ofstax.in", full_name="Devendra Diwakar", hashed_password="pw")
-    session.add(user)
-    profile = TaxProfile(
-        user_id=1,
-        pan="ABCDE1234F",
-        gross_salary=1200000,
-        deductions_80c=150000,
-        tds_deducted=85000
-    )
-    computation = TaxComputation(
-        user_id=1,
-        assessment_year="2025-26",
-        new_taxable_income=1125000,
-        new_total_tax=62500,
-        old_taxable_income=1050000,
-        old_total_tax=85000,
-        recommended_regime="new"
-    )
-    session.add(profile)
-    session.add(computation)
-    session.commit()
-    session.close()
-
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db_session.get_bind())
+    user_id = sample_user.id
     call_count = 0
 
     async def mock_submit_itr(pan, payload):
@@ -344,7 +311,7 @@ def test_concurrent_first_submits_only_call_sandbox_once(db_session, sample_user
 
     def run_submit():
         local_session = TestingSessionLocal()
-        u = local_session.query(User).filter(User.id == 1).first()
+        u = local_session.query(User).filter(User.id == user_id).first()
         try:
             return asyncio.run(
                 submit_tax_return(

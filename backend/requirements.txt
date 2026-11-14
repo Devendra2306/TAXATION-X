@@ -34,4 +34,5 @@ uvicorn
 sentry-sdk
 email-validator
 psycopg[binary]
+jsonschema
 

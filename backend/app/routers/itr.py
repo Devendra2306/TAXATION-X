@@ -345,7 +345,11 @@ async def submit_tax_return(request: FilingRequest, current_user: User = Depends
 
         # 6. Generate and validate the official ITR schema JSON payload with assessment_year
         itr_json_payload = export_itr_json(assessment_year=request.assessment_year, db=db, current_user=current_user)
-        validation_errors = eri_service.validate_itr1_schema(itr_json_payload, expected_ay=request.assessment_year)
+        try:
+            validation_errors = eri_service.validate_itr1_schema(itr_json_payload, expected_ay=request.assessment_year)
+        except FileNotFoundError as e:
+            logger.error(f"Official ITD JSON schema file error: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
         if validation_errors:
             raise HTTPException(
                 status_code=422,
