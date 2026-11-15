@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Scale, ArrowRight, CheckCircle2, TrendingDown, TrendingUp } from 'lucide-react';
+import { Scale, ArrowRight, CheckCircle2, TrendingDown, TrendingUp, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
@@ -10,6 +10,7 @@ import { CURRENT_ASSESSMENT_YEAR } from '@/lib/assessmentYear';
 export default function ComparePage() {
   const router = useRouter();
   const [selectedRegime, setSelectedRegime] = useState<'new' | 'old'>('new');
+  const [errorMessage, setErrorMessage] = useState('');
   const [data, setData] = useState({
     gross_salary: 0,
     deductions_80c: 0,
@@ -45,9 +46,13 @@ export default function ComparePage() {
              deductions_80c: result.old_regime.deductions_80c,
              tds_deducted: result.recommendation.refund > 0 ? (result.recommendation.refund + Math.min(result.old_regime.total_tax, result.new_regime.total_tax)) : 0
           });
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          setErrorMessage(errData.detail || 'Unable to compute tax under statutory rules.');
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error(e);
+        setErrorMessage(e?.message || 'Network error occurred while computing taxes.');
       } finally {
         setIsComputing(false);
       }
@@ -145,6 +150,30 @@ export default function ComparePage() {
           </Link>
         </div>
       </div>
+
+      {/* ERROR BANNER */}
+      {errorMessage && (
+        <div className="p-4 bg-rose-50 border border-rose-300 rounded-2xl text-rose-900 flex items-start gap-3 shadow-xs">
+          <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+          <div>
+            <h4 className="font-bold text-sm">Tax Computation Failed</h4>
+            <p className="text-xs text-rose-700 mt-0.5">{errorMessage}</p>
+          </div>
+        </div>
+      )}
+
+      {/* HIGH INCOME / FILING ADVISORY */}
+      {dbResult?.warnings && dbResult.warnings.length > 0 && (
+        <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl text-amber-900 flex items-start gap-3 shadow-xs">
+          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <h4 className="font-bold text-sm">Statutory Eligibility Notice</h4>
+            {dbResult.warnings.map((w: string, i: number) => (
+              <p key={i} className="text-xs text-amber-800 mt-0.5">{w}</p>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* AI Recommendation Banner */}
       <motion.div 
