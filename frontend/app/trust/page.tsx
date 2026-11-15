@@ -23,7 +23,7 @@ export default function TrustPage() {
           Your data is safe with NexTax.
         </h1>
         <p className="text-xl text-slate-600 leading-relaxed max-w-3xl mx-auto">
-          As a registered E-Return Intermediary (ERI) authorized by the Income Tax Department of India, security and privacy are at the core of everything we build.
+          Designed in accordance with Income Tax Department filing standards, security and privacy are at the core of everything we build.
         </p>
       </section>
 

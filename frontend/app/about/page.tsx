@@ -53,9 +53,9 @@ export default function AboutPage() {
               <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center text-purple-600 mb-6">
                 <Shield size={24} />
               </div>
-              <h2 className="text-2xl font-bold mb-4">Authorized & Secure</h2>
+              <h2 className="text-2xl font-bold mb-4">Compliant & Secure</h2>
               <p className="text-slate-600 leading-relaxed">
-                NexTax is an officially registered E-Return Intermediary (ERI) with the Income Tax Department of India. This means we are directly integrated with government servers using robust 256-bit encryption, ensuring your data never falls into the wrong hands.
+                NexTax is designed in full alignment with Income Tax Department of India filing standards. All data in transit and at rest is protected using robust 256-bit encryption, ensuring your data never falls into the wrong hands.
               </p>
             </div>
             <div className="p-12">

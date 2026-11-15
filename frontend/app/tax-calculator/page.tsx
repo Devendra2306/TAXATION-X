@@ -326,7 +326,7 @@ export default function TaxCalculatorPage() {
               <div className="bg-slate-50 p-4 border-t border-slate-100 flex items-start gap-3">
                 <ShieldCheck className="text-emerald-500 shrink-0 mt-0.5" size={20} />
                 <p className="text-xs text-slate-500 leading-relaxed">
-                  Your calculations are completely secure. We use 256-bit encryption and are an authorized E-Return Intermediary.
+                  Your calculations are completely secure. We use 256-bit encryption designed for Income Tax Department filing standards.
                 </p>
               </div>
             </div>

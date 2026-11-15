@@ -131,7 +131,7 @@ export default function LoginPage() {
         <div className="relative px-12 xl:px-16 pb-10">
           <Logo size="sm" href="/" className="[&_span]:text-white [&_span_span]:from-white [&_span_span]:to-emerald-200 mb-3" />
           <p className="text-xs text-white/50 leading-relaxed max-w-sm">
-            Authorized E-Return Intermediary. 256-bit bank-grade encryption.
+            Designed for Income Tax Department filing. 256-bit bank-grade encryption.
           </p>
         </div>
       </div>

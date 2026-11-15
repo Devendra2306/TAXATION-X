@@ -728,7 +728,7 @@ export default function ExportPage() {
           </div>
           <div className="flex items-center gap-1.5 font-semibold text-slate-700">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Official ERI Intermediary</span>
+            <span>Income Tax Portal Format</span>
           </div>
         </div>
         <div>AY {CURRENT_ASSESSMENT_YEAR} Compliant</div>

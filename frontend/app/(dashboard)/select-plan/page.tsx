@@ -301,7 +301,7 @@ export default function PayAndContinueFilingPage() {
 
           <div className="text-center text-[11px] text-slate-400 flex items-center justify-center gap-1">
             <Lock className="w-3 h-3" />
-            <span>Encrypted with 256-bit SSL • Official ERI Partner</span>
+            <span>Encrypted with 256-bit SSL • Bank-Grade Privacy</span>
           </div>
         </div>
       </div>
