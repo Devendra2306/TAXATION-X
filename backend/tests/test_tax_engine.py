@@ -153,6 +153,43 @@ def test_old_regime_verified_cases():
     assert res_b["total_tax"] == 85800.0
 
 
+def test_old_regime_statutory_caps_and_cess():
+    """Verify Section 80C cap (1.5L) and Home Loan Interest cap (2.0L) are strictly enforced."""
+    res = calculate_old_regime(
+        gross_salary=2000000.0,
+        d80c=300000.0,               # Exceeds 1.5L
+        home_loan_interest=450000.0, # Exceeds 2.0L
+        assessment_year="2026-27"
+    )
+    assert res["deductions_80c"] == 150000.0
+    assert res["home_loan_interest"] == 200000.0
+    assert res["standard_deduction"] == 50000.0
+    assert res["total_deductions"] == 400000.0
+    # Taxable: 20L - 4L = 16L
+    # Slab: 12.5k (2.5-5L) + 100k (5-10L) + 180k (6L @ 30%) = 2,92,500
+    # Cess: 4% of 2,92,500 = 11,700
+    # Total: 3,04,200
+    assert res["taxable_income"] == 1600000.0
+    assert res["slab_tax"] == 292500.0
+    assert res["cess"] == 11700.0
+    assert res["total_tax"] == 304200.0
+
+
+def test_high_income_flag_and_itr1_ineligibility():
+    """Verify incomes exceeding 50L flag surcharge applicability and ITR-1 ineligibility."""
+    res_high = compute_regimes(gross_salary=6000000.0, assessment_year="2026-27")
+    assert res_high["itr1_eligible"] is False
+    assert res_high["old_regime"]["surcharge_applicable"] is True
+    assert res_high["new_regime"]["surcharge_applicable"] is True
+    assert any("exceeds ₹50 Lakh statutory limit" in w for w in res_high["warnings"])
+
+    res_eligible = compute_regimes(gross_salary=1500000.0, assessment_year="2026-27")
+    assert res_eligible["itr1_eligible"] is True
+    assert res_eligible["old_regime"]["surcharge_applicable"] is False
+    assert res_eligible["new_regime"]["surcharge_applicable"] is False
+    assert len(res_eligible["warnings"]) == 0
+
+
 # ==============================================================================
 # Integration Tests for POST /api/tax/compute
 # ==============================================================================

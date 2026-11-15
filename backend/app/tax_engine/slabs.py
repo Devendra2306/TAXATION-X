@@ -1,11 +1,18 @@
 """
 Tax slabs and statutory parameters for Indian Income Tax.
 Supports both Assessment Year 2026-27 (Financial Year 2025-26) and AY 2025-26 (FY 2024-25).
+
+Official Statutory Sources:
+- Income Tax Department Tax Rates & Charts: https://incometaxindia.gov.in/Pages/charts-and-tables.aspx
+- Finance Act 2025 & Finance Act 2024 (First Schedule Part I & Section 115BAC)
+- Section 87A (Rebate of Income Tax), Section 16(ia) (Standard Deduction)
+- Section 80C (Chapter VI-A Deductions) & Section 24(b) (Home Loan Interest)
 """
 
 from typing import Dict, Any, List
 
 # --- AY 2026-27 (FY 2025-26) Slabs as per Finance Act 2025 / Budget 2025 ---
+# Source: https://incometaxindia.gov.in/Pages/charts-and-tables.aspx
 AY_2026_27_NEW_SLABS = [
     {"limit": 400000, "rate": 0.0},
     {"limit": 800000, "rate": 0.05},
@@ -16,6 +23,9 @@ AY_2026_27_NEW_SLABS = [
     {"limit": float('inf'), "rate": 0.30},
 ]
 
+# Old Regime Slabs (General Individual below 60 years):
+# 0-2.5L (Nil), 2.5-5L (5%), 5-10L (20%), >10L (30%)
+# Source: Income-tax Act 1961, First Schedule Part I
 AY_2026_27_OLD_SLABS = [
     {"limit": 250000, "rate": 0.0},
     {"limit": 500000, "rate": 0.05},

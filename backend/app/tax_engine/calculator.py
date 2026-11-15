@@ -45,6 +45,16 @@ def calculate_old_regime(
     cess = tax_liability * cess_rate
     total_tax = tax_liability + cess
 
+    itr1_eligible = gross_total_income <= 5000000.0
+    surcharge_applicable = taxable_income > 5000000.0
+    warnings = []
+    if not itr1_eligible:
+        warnings.append(
+            f"Gross income (₹{gross_total_income:,.0f}) exceeds ₹50 Lakh statutory limit for ITR-1 (Sahaj). File ITR-2 or ITR-3."
+        )
+    if surcharge_applicable:
+        warnings.append("Taxable income exceeds ₹50 Lakhs. Surcharge under Chapter II is applicable.")
+
     return {
         "gross_income": gross_total_income,
         "standard_deduction": standard_deduction,
@@ -59,7 +69,10 @@ def calculate_old_regime(
         "cess": cess,
         "total_tax": total_tax,
         "assessment_year": assessment_year,
-        "regime": "old"
+        "regime": "old",
+        "itr1_eligible": itr1_eligible,
+        "surcharge_applicable": surcharge_applicable,
+        "warnings": warnings
     }
 
 
@@ -108,6 +121,16 @@ def calculate_new_regime(
     cess = tax_liability * cess_rate
     total_tax = tax_liability + cess
 
+    itr1_eligible = gross_total_income <= 5000000.0
+    surcharge_applicable = taxable_income > 5000000.0
+    warnings = []
+    if not itr1_eligible:
+        warnings.append(
+            f"Gross income (₹{gross_total_income:,.0f}) exceeds ₹50 Lakh statutory limit for ITR-1 (Sahaj). File ITR-2 or ITR-3."
+        )
+    if surcharge_applicable:
+        warnings.append("Taxable income exceeds ₹50 Lakhs. Surcharge under Chapter II is applicable.")
+
     return {
         "gross_income": gross_total_income,
         "standard_deduction": standard_deduction,
@@ -120,7 +143,10 @@ def calculate_new_regime(
         "cess": cess,
         "total_tax": total_tax,
         "assessment_year": assessment_year,
-        "regime": "new"
+        "regime": "new",
+        "itr1_eligible": itr1_eligible,
+        "surcharge_applicable": surcharge_applicable,
+        "warnings": warnings
     }
 
 
@@ -163,7 +189,9 @@ def compute_regimes(
             "refund": refund,
             "best_tax": best_tax
         },
-        "assessment_year": assessment_year
+        "assessment_year": assessment_year,
+        "itr1_eligible": old_res["itr1_eligible"],
+        "warnings": old_res["warnings"]
     }
 
 
