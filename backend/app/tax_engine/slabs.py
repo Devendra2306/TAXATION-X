@@ -84,14 +84,27 @@ RULES_BY_AY: Dict[str, Dict[str, Any]] = {
 DEFAULT_ASSESSMENT_YEAR = "2026-27"
 
 
+class UnsupportedAssessmentYear(ValueError):
+    """Raised when the requested assessment year is not supported by statutory rules."""
+    pass
+
+
+def get_supported_assessment_years() -> List[str]:
+    """Returns sorted list of statutory assessment years supported by the tax engine."""
+    return sorted(list(RULES_BY_AY.keys()))
+
+
 def get_tax_rules(assessment_year: str = DEFAULT_ASSESSMENT_YEAR) -> Dict[str, Any]:
     """
     Returns the tax rules dictionary for the specified assessment year.
-    Falls back to AY 2026-27 rules if year is not explicitly mapped.
+    Raises UnsupportedAssessmentYear if assessment_year is not supported.
     """
-    if assessment_year in RULES_BY_AY:
-        return RULES_BY_AY[assessment_year]
-    return RULES_BY_AY[DEFAULT_ASSESSMENT_YEAR]
+    if assessment_year not in RULES_BY_AY:
+        supported = ", ".join(get_supported_assessment_years())
+        raise UnsupportedAssessmentYear(
+            f"Assessment year '{assessment_year}' is not supported. Supported: {supported}."
+        )
+    return RULES_BY_AY[assessment_year]
 
 
 def calculate_tax_from_slabs(income: float, slabs: List[Dict[str, Any]]) -> float:

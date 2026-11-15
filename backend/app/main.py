@@ -99,5 +99,7 @@ app.include_router(itr.router)
 app.include_router(payment.router)
 
 from .routers import tax
+from .tax_engine import router as tax_engine_router
 app.include_router(tax.router)
+app.include_router(tax_engine_router.router)
 

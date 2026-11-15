@@ -15,6 +15,11 @@ from app.tax_engine.calculator import (
     calculate_old_regime,
     compute_regimes
 )
+from app.tax_engine.slabs import (
+    get_tax_rules,
+    UnsupportedAssessmentYear,
+    get_supported_assessment_years
+)
 
 # In-memory SQLite for testing
 engine = create_engine(
@@ -232,3 +237,92 @@ def test_api_tax_compute_success_ay2026_27(client, db_session):
     assert comp.assessment_year == "2026-27"
     assert comp.new_total_tax == 52000.0
     assert comp.recommended_regime == "new"
+
+
+def test_unsupported_assessment_year_raises():
+    """get_tax_rules raises UnsupportedAssessmentYear for unknown year."""
+    with pytest.raises(UnsupportedAssessmentYear) as exc_info:
+        get_tax_rules("2031-32")
+    assert "2031-32" in str(exc_info.value)
+    assert "Supported: 2025-26, 2026-27" in str(exc_info.value)
+
+
+def test_supported_years_endpoint(client):
+    """GET /api/tax/supported-years returns list of statutory assessment years."""
+    res = client.get("/api/tax/supported-years")
+    assert res.status_code == 200
+    data = res.json()
+    assert "supported_assessment_years" in data
+    assert data["supported_assessment_years"] == ["2025-26", "2026-27"]
+
+
+def test_api_tax_compute_rejects_unsupported_year(client, db_session):
+    """POST /api/tax/compute returns 422 with supported years when year is syntactically valid but unsupported."""
+    user = User(email="tax_unsupported@example.com", hashed_password="pw", full_name="Tax Unsupported")
+    db_session.add(user)
+    db_session.commit()
+
+    profile = TaxProfile(
+        user_id=user.id,
+        pan="ABCDE1234F",
+        gross_salary=1000000.0,
+        other_income=0.0,
+        deductions_80c=0.0,
+        home_loan_interest=0.0,
+        tds_deducted=0.0
+    )
+    db_session.add(profile)
+    db_session.commit()
+
+    token = create_access_token({"sub": user.email})
+
+    res = client.post(
+        "/api/tax/compute",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"assessment_year": "2031-32"}
+    )
+    assert res.status_code == 422
+    assert "Assessment year '2031-32' is not supported" in res.json()["detail"]
+    assert "Supported: 2025-26, 2026-27" in res.json()["detail"]
+
+
+def test_api_tax_compute_direct_rejects_unsupported_year(client):
+    """POST /api/tax/compute-direct returns 422 for unsupported assessment year."""
+    payload = {
+        "gross_salary": 1200000.0,
+        "standard_deduction": 75000.0,
+        "chapter_vi_a_deductions": 50000.0,
+        "total_tax_deducted": 10000.0,
+        "assessment_year": "2031-32"
+    }
+    res = client.post("/api/tax/compute-direct", json=payload)
+    assert res.status_code == 422
+    assert "2031-32" in res.json()["detail"]
+
+
+def test_api_tax_compute_direct_requires_assessment_year(client):
+    """POST /api/tax/compute-direct returns 422 when assessment_year is omitted."""
+    payload = {
+        "gross_salary": 1200000.0,
+        "standard_deduction": 75000.0,
+        "chapter_vi_a_deductions": 50000.0,
+        "total_tax_deducted": 10000.0
+    }
+    res = client.post("/api/tax/compute-direct", json=payload)
+    assert res.status_code == 422
+
+
+def test_api_tax_compute_direct_success(client):
+    """POST /api/tax/compute-direct calculates correctly when valid assessment_year is passed."""
+    payload = {
+        "gross_salary": 1275000.0,
+        "standard_deduction": 75000.0,
+        "chapter_vi_a_deductions": 0.0,
+        "total_tax_deducted": 0.0,
+        "assessment_year": "2026-27"
+    }
+    res = client.post("/api/tax/compute-direct", json=payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["new_regime"]["taxable_income"] == 1200000.0
+    assert data["new_regime"]["total_tax"] == 0.0

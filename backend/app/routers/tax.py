@@ -14,8 +14,20 @@ from app.tax_engine.calculator import (
     calculate_new_regime,
     compute_regimes
 )
+from app.tax_engine.slabs import (
+    UnsupportedAssessmentYear,
+    get_supported_assessment_years
+)
 
 router = APIRouter(prefix="/api/tax", tags=["Tax Computation"])
+
+
+@router.get("/supported-years")
+def get_supported_years():
+    """
+    Returns the list of statutory assessment years supported by the tax engine.
+    """
+    return {"supported_assessment_years": get_supported_assessment_years()}
 
 
 class TaxComputeRequest(BaseModel):
@@ -55,14 +67,17 @@ def compute_taxes(
         raise HTTPException(status_code=404, detail="Tax profile not found. Please review data first.")
 
     # Calculate using unified tax engine
-    result = compute_regimes(
-        gross_salary=profile.gross_salary,
-        other_income=profile.other_income,
-        deductions_80c=profile.deductions_80c,
-        home_loan_interest=profile.home_loan_interest,
-        tds_deducted=profile.tds_deducted,
-        assessment_year=validated_ay
-    )
+    try:
+        result = compute_regimes(
+            gross_salary=profile.gross_salary,
+            other_income=profile.other_income,
+            deductions_80c=profile.deductions_80c,
+            home_loan_interest=profile.home_loan_interest,
+            tds_deducted=profile.tds_deducted,
+            assessment_year=validated_ay
+        )
+    except UnsupportedAssessmentYear as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
     old_res = result["old_regime"]
     new_res = result["new_regime"]
