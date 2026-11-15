@@ -65,16 +65,11 @@ export default function DashboardLayout({
 
   const [userName, setUserName] = useState('Loading...');
   const [userInitials, setUserInitials] = useState('..');
-  const [userPan, setUserPan] = useState('');
+  const [userPan, setUserPan] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('verified_pan') || '' : ''));
   const [filingDropdownOpen, setFilingDropdownOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   useEffect(() => {
-    // Check local storage for verified PAN
-    if (typeof window !== 'undefined') {
-      const storedPan = localStorage.getItem('verified_pan');
-      if (storedPan) setUserPan(storedPan);
-    }
 
     const fetchProfile = async () => {
       const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;

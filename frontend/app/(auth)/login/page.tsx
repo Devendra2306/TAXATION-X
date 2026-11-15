@@ -11,17 +11,7 @@ export default function LoginPage() {
   const [showOtherOptions, setShowOtherOptions] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [isSlowLoading, setIsSlowLoading] = useState(false);
   const router = useRouter();
-  useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-    if (loading) {
-      timeoutId = setTimeout(() => setIsSlowLoading(true), 3500);
-    } else {
-      setIsSlowLoading(false);
-    }
-    return () => clearTimeout(timeoutId);
-  }, [loading]);
 
 
   const [email, setEmail] = useState('');

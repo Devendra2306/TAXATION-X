@@ -50,9 +50,10 @@ export default function UploadPage() {
       setStatus('success');
       
       setTimeout(() => { router.push('/review'); }, 1500);
-    } catch (error: any) {
+    } catch (error: unknown) {
       setStatus('error');
-      setErrorMessage(error?.message || 'Upload failed. Please check your PDF and try again.');
+      const msg = error instanceof Error ? error.message : 'Upload failed. Please check your PDF and try again.';
+      setErrorMessage(msg);
     }
   };
 

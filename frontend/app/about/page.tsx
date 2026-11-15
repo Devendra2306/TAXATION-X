@@ -21,7 +21,7 @@ export default function AboutPage() {
           Simplifying taxes for the modern Indian workforce.
         </h1>
         <p className="text-xl text-slate-600 leading-relaxed max-w-3xl mx-auto">
-          At NexTax, we believe that filing your taxes shouldn't require a degree in finance. We are a fast-growing financial technology company dedicated to making tax compliance automated, accurate, and stress-free.
+          At NexTax, we believe that filing your taxes shouldn&apos;t require a degree in finance. We are a fast-growing financial technology company dedicated to making tax compliance automated, accurate, and stress-free.
         </p>
       </section>
 

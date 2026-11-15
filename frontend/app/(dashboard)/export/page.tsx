@@ -24,53 +24,65 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { CURRENT_ASSESSMENT_YEAR } from '@/lib/assessmentYear';
 
+interface AckDetails {
+  ack_number: string;
+  date: string;
+  form: string;
+  status: string;
+}
+
 export default function ExportPage() {
   const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloading' | 'done'>('idle');
-  const [efileStatus, setEfileStatus] = useState<'idle' | 'submitting' | 'everify_pending' | 'verified'>('idle');
+  const [efileStatus, setEfileStatus] = useState<'idle' | 'submitting' | 'everify_pending' | 'verified'>(() => {
+    if (typeof window !== 'undefined') {
+      const alreadyFiled = localStorage.getItem('itr_filed') === 'true';
+      const storedAck = localStorage.getItem('ack_number');
+      const isAlreadyVerified = localStorage.getItem('itr_verified') === 'true';
+      if (alreadyFiled && storedAck) {
+        return isAlreadyVerified ? 'verified' : 'everify_pending';
+      }
+    }
+    return 'idle';
+  });
   const [everifyOtp, setEverifyOtp] = useState('');
   const [isEverifying, setIsEverifying] = useState(false);
   const [everifyDeadline, setEverifyDeadline] = useState('');
-  const [ackDetails, setAckDetails] = useState<any>(null);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [isSimulated, setIsSimulated] = useState(false);
-
-  // Taxpayer details from local storage
-  const [pan, setPan] = useState('');
-  const [name, setName] = useState('Taxpayer');
-  const [paymentSuccessTxnid, setPaymentSuccessTxnid] = useState<string | null>(null);
-
-  useEffect(() => {
+  const [ackDetails, setAckDetails] = useState<AckDetails | null>(() => {
     if (typeof window !== 'undefined') {
-      const storedPan = localStorage.getItem('verified_pan');
-      const storedName = localStorage.getItem('verified_name');
-      if (storedPan) setPan(storedPan);
-      if (storedName) setName(storedName);
-
-      // Check payment params
-      const urlParams = new URLSearchParams(window.location.search);
-      const isSuccess = urlParams.get('payment') === 'success';
-      const txnid = urlParams.get('txnid') || localStorage.getItem('last_payment_txnid');
-      if (isSuccess || urlParams.get('payment') === 'simulated' || txnid) {
-        setPaymentSuccessTxnid(txnid || 'TEST_PAYU_SUCCESS');
-      }
-
-      // Check if already filed in this session
       const alreadyFiled = localStorage.getItem('itr_filed') === 'true';
       const storedAck = localStorage.getItem('ack_number');
-      const sim = localStorage.getItem('is_simulated_filing') === 'true';
-      setIsSimulated(sim);
-
       const isAlreadyVerified = localStorage.getItem('itr_verified') === 'true';
       if (alreadyFiled && storedAck) {
-        setAckDetails({
+        return {
           ack_number: storedAck,
           date: localStorage.getItem('ack_date') || 'Today',
           form: 'ITR-1 (Sahaj)',
           status: isAlreadyVerified ? 'Filed & e-Verified' : 'e-Verification Pending'
-        });
-        setEfileStatus(isAlreadyVerified ? 'verified' : 'everify_pending');
+        };
       }
+    }
+    return null;
+  });
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isSimulated, setIsSimulated] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('is_simulated_filing') === 'true' : false));
 
+  // Taxpayer details from local storage
+  const [pan, setPan] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('verified_pan') || '' : ''));
+  const [name, setName] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('verified_name') || 'Taxpayer' : 'Taxpayer'));
+  const [paymentSuccessTxnid, setPaymentSuccessTxnid] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const isSuccess = urlParams.get('payment') === 'success';
+      const txnid = urlParams.get('txnid') || localStorage.getItem('last_payment_txnid');
+      if (isSuccess || urlParams.get('payment') === 'simulated' || txnid) {
+        return txnid || 'TEST_PAYU_SUCCESS';
+      }
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
       // Sync from backend filing status endpoint
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -186,8 +198,9 @@ export default function ExportPage() {
       setAckDetails(ackInfo);
       // Gated by Phase 4: Must e-verify before seeing "Filing Complete"
       setEfileStatus('everify_pending');
-    } catch (err: any) {
-      setErrorMessage(err?.message || 'Network error during filing submission. Please retry.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Network error during filing submission. Please retry.';
+      setErrorMessage(msg);
       setEfileStatus('idle');
     }
   };
@@ -233,13 +246,14 @@ export default function ExportPage() {
       }
 
       localStorage.setItem('itr_verified', 'true');
-      setAckDetails((prev: any) => ({
+      setAckDetails((prev) => (prev ? {
         ...prev,
         status: data.simulated ? 'Filed & Verified (Demo)' : 'Filed & e-Verified'
-      }));
+      } : null));
       setEfileStatus('verified');
-    } catch (err: any) {
-      setErrorMessage(err?.message || 'Network error during e-verification.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Network error during e-verification.';
+      setErrorMessage(msg);
     } finally {
       setIsEverifying(false);
     }
@@ -463,7 +477,7 @@ export default function ExportPage() {
               </button>
 
               <div className="flex items-center justify-between text-xs text-slate-500 pt-2 px-1">
-                <span>Didn't receive Aadhaar OTP?</span>
+                <span>Didn&apos;t receive Aadhaar OTP?</span>
                 <button
                   onClick={handleResendEverifyOtp}
                   className="text-indigo-600 font-bold hover:underline"
@@ -671,7 +685,7 @@ export default function ExportPage() {
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-slate-400 shrink-0" />
-                  <span>Upload under "Offline Filing" mode</span>
+                  <span>Upload under &quot;Offline Filing&quot; mode</span>
                 </li>
               </ul>
             </div>

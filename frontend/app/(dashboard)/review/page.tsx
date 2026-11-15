@@ -38,17 +38,38 @@ export default function TaxSummaryReviewPage() {
   const router = useRouter();
 
   // User & Tax Profile State
-  const [userName, setUserName] = useState('Taxpayer');
-  const [isSimulated, setIsSimulated] = useState(false);
-  const [profileData, setProfileData] = useState({
-    gross_salary: 0,
-    deductions_80c: 0,
-    tds_deducted: 0,
-    home_loan_interest: 0,
-    capital_gains: 0,
-    other_income: 0,
-    employer_name: '',
-    pan: ''
+  const [userName, setUserName] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('verified_name') || 'Taxpayer' : 'Taxpayer'));
+  const [isSimulated, setIsSimulated] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('is_simulated_filing') === 'true' : false));
+  const [profileData, setProfileData] = useState(() => {
+    let initial = {
+      gross_salary: 0,
+      deductions_80c: 0,
+      tds_deducted: 0,
+      home_loan_interest: 0,
+      capital_gains: 0,
+      other_income: 0,
+      employer_name: '',
+      pan: ''
+    };
+    if (typeof window !== 'undefined') {
+      const storedPan = localStorage.getItem('verified_pan');
+      if (storedPan) initial.pan = storedPan;
+      const parsedTaxStr = localStorage.getItem('parsedTaxData');
+      if (parsedTaxStr) {
+        try {
+          const parsed = JSON.parse(parsedTaxStr);
+          initial = {
+            ...initial,
+            gross_salary: Number(parsed.gross_salary || initial.gross_salary),
+            deductions_80c: Number(parsed.deductions_80c ?? initial.deductions_80c),
+            tds_deducted: Number(parsed.tds_deducted ?? initial.tds_deducted),
+            employer_name: parsed.employer_name || initial.employer_name,
+            pan: parsed.pan || initial.pan
+          };
+        } catch {}
+      }
+    }
+    return initial;
   });
 
   const [selectedRegime, setSelectedRegime] = useState<'new' | 'old'>('new');
@@ -110,35 +131,9 @@ export default function TaxSummaryReviewPage() {
     }
   };
 
-  // Load profile from API and localStorage
+  // Load profile from API
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const sim = localStorage.getItem('is_simulated_filing') === 'true';
-      setIsSimulated(sim);
-      const storedPan = localStorage.getItem('verified_pan');
-      const storedName = localStorage.getItem('verified_name');
-      const parsedTaxStr = localStorage.getItem('parsedTaxData');
-
-      if (storedName) setUserName(storedName);
-
-      let initialData = { ...profileData };
-      if (storedPan) initialData.pan = storedPan;
-
-      if (parsedTaxStr) {
-        try {
-          const parsed = JSON.parse(parsedTaxStr);
-          initialData = {
-            ...initialData,
-            gross_salary: Number(parsed.gross_salary || initialData.gross_salary),
-            deductions_80c: Number(parsed.deductions_80c ?? initialData.deductions_80c),
-            tds_deducted: Number(parsed.tds_deducted ?? initialData.tds_deducted),
-            employer_name: parsed.employer_name || initialData.employer_name,
-            pan: parsed.pan || initialData.pan
-          };
-        } catch {}
-      }
-
-      // Fetch from API
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
       if (token) {
         const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -148,30 +143,27 @@ export default function TaxSummaryReviewPage() {
           .then((res) => (res.ok ? res.json() : null))
           .then((data) => {
             if (data) {
-              const merged = {
-                ...initialData,
-                gross_salary: Number(data.gross_salary || initialData.gross_salary),
-                deductions_80c: Number(data.deductions_80c ?? initialData.deductions_80c),
-                tds_deducted: Number(data.tds_deducted ?? initialData.tds_deducted),
-                home_loan_interest: Number(data.home_loan_interest || 0),
-                capital_gains: Number(data.capital_gains || 0),
-                other_income: Number(data.other_income || 448),
-                employer_name: data.employer_name || initialData.employer_name,
-                pan: data.pan || initialData.pan
-              };
-              setProfileData(merged);
-              setEditForm(merged);
-
-              // If capital gains exist, user needs ITR 2
-              if (merged.capital_gains > 0) {
-                setItrType('ITR 2');
-              }
+              setProfileData((prev) => {
+                const merged = {
+                  ...prev,
+                  gross_salary: Number(data.gross_salary || prev.gross_salary),
+                  deductions_80c: Number(data.deductions_80c ?? prev.deductions_80c),
+                  tds_deducted: Number(data.tds_deducted ?? prev.tds_deducted),
+                  home_loan_interest: Number(data.home_loan_interest || 0),
+                  capital_gains: Number(data.capital_gains || 0),
+                  other_income: Number(data.other_income || 448),
+                  employer_name: data.employer_name || prev.employer_name,
+                  pan: data.pan || prev.pan
+                };
+                setEditForm(merged);
+                if (merged.capital_gains > 0) {
+                  setItrType('ITR 2');
+                }
+                return merged;
+              });
             }
           })
           .catch(() => {});
-      } else {
-        setProfileData(initialData);
-        setEditForm(initialData);
       }
     }
   }, []);
@@ -1193,7 +1185,7 @@ export default function TaxSummaryReviewPage() {
                 <div className="p-6 sm:p-8 space-y-6 flex-1 text-xs">
                   <div>
                     <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
-                      WHAT'S COVERED
+                      WHAT&apos;S COVERED
                     </h3>
                     <ul className="space-y-3 text-slate-700">
                       <li className="flex items-start gap-3">

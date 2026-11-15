@@ -17,7 +17,7 @@ export default function ContactPage() {
       {/* Hero */}
       <section className="max-w-4xl mx-auto px-6 pt-20 pb-16 text-center">
         <h1 className="text-4xl md:text-5xl font-bold mb-6 text-slate-900 leading-tight">
-          We're here to help.
+          We&apos;re here to help.
         </h1>
         <p className="text-xl text-slate-600 leading-relaxed max-w-2xl mx-auto">
           Whether you have a tax query, need help navigating our portal, or want to explore enterprise solutions, our team is just a message away.

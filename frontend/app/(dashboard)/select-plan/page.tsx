@@ -28,41 +28,34 @@ export default function PayAndContinueFilingPage() {
   const router = useRouter();
 
   // User details
-  const [userName, setUserName] = useState('Taxpayer');
-  const [userPan, setUserPan] = useState('');
-  const [planType, setPlanType] = useState('Salaried Individual (ITR-1)');
+  const [userName, setUserName] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('verified_name') || 'Taxpayer' : 'Taxpayer'));
+  const [userPan, setUserPan] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('verified_pan') || '' : ''));
+  const [planType, setPlanType] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const parsedTax = localStorage.getItem('parsedTaxData');
+      if (parsedTax) {
+        try {
+          const parsed = JSON.parse(parsedTax);
+          if (parsed.capital_gains > 0) return 'Capital Gains (ITR-2)';
+        } catch {}
+      }
+    }
+    return 'Salaried Individual (ITR-1)';
+  });
 
   // Add-on states
   const [includeTaxPlanning, setIncludeTaxPlanning] = useState(false);
   const [couponCode, setCouponCode] = useState('CTPOFFER13');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentError, setPaymentError] = useState<string | null>(null);
-
-  useEffect(() => {
+  const [paymentError, setPaymentError] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
-      const storedName = localStorage.getItem('verified_name');
-      const storedPan = localStorage.getItem('verified_pan');
-      if (storedName) setUserName(storedName);
-      if (storedPan) setUserPan(storedPan);
-
-      // Check URL query parameters for PayU status
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('payment') === 'failed') {
-        setPaymentError('The previous payment attempt was cancelled or failed on the gateway. Please try again.');
-      }
-
-      // Check capital gains
-      const parsedTax = localStorage.getItem('parsedTaxData');
-      if (parsedTax) {
-        try {
-          const parsed = JSON.parse(parsedTax);
-          if (parsed.capital_gains > 0) {
-            setPlanType('Capital Gains (ITR-2)');
-          }
-        } catch {}
+        return 'The previous payment attempt was cancelled or failed on the gateway. Please try again.';
       }
     }
-  }, []);
+    return null;
+  });
 
   // Pricing calculations
   const basePlanAmount = 1057;
@@ -82,7 +75,7 @@ export default function PayAndContinueFilingPage() {
         firstname: userName.split(' ')[0] || 'Taxpayer',
         email: 'taxpayer@ofstax.in',
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.warn('PayU payment initiation notice (falling back for testing):', err);
       // Fallback for seamless offline/dev testing
       setTimeout(() => {
@@ -175,7 +168,7 @@ export default function PayAndContinueFilingPage() {
           <div className="p-3 bg-purple-50/70 border border-purple-100 rounded-2xl flex items-center gap-2.5 text-xs text-purple-950 font-medium">
             <span className="w-2 h-2 rounded-full bg-purple-600 animate-pulse shrink-0" />
             <span>
-              A yearly payment that's worth it, <strong>40 users</strong> completed payment in the last 1 hour.
+              A yearly payment that&apos;s worth it, <strong>40 users</strong> completed payment in the last 1 hour.
             </span>
           </div>
 
@@ -263,7 +256,7 @@ export default function PayAndContinueFilingPage() {
                   <span className="font-mono text-indigo-600">+ ₹ 499</span>
                 </div>
                 <p className="text-slate-500 mt-0.5">
-                  Get personalized 1-on-1 expert advice for next year's filing &amp; save more.
+                  Get personalized 1-on-1 expert advice for next year&apos;s filing &amp; save more.
                 </p>
               </label>
             </div>

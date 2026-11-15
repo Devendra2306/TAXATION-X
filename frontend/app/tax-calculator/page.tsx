@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { Calculator, ArrowRight, Info, ShieldCheck, ChevronDown, CheckCircle2, ChevronRight, Star } from 'lucide-react';
 
@@ -23,18 +23,8 @@ export default function TaxCalculatorPage() {
   const [deductions80tta, setDeductions80tta] = useState<number | ''>('');
   const [deductions80g, setDeductions80g] = useState<number | ''>('');
 
-  // RESULTS
-  const [results, setResults] = useState({
-    grossIncome: 0,
-    totalDeductionsOld: 0,
-    totalDeductionsNew: 0,
-    taxableOld: 0,
-    taxableNew: 0,
-    taxOld: 0,
-    taxNew: 0,
-  });
-
-  const calculateTax = () => {
+  // RESULTS (derived synchronously via useMemo)
+  const results = useMemo(() => {
     // Values
     const s = Number(salary) || 0;
     const ex = Number(exemptions) || 0;
@@ -97,7 +87,7 @@ export default function TaxCalculatorPage() {
       taxNew = taxNew * 1.04; // Cess
     }
 
-    setResults({
+    return {
       grossIncome: grossTotal,
       totalDeductionsOld,
       totalDeductionsNew,
@@ -105,12 +95,8 @@ export default function TaxCalculatorPage() {
       taxableNew,
       taxOld: Math.round(taxOld),
       taxNew: Math.round(taxNew),
-    });
-  };
-
-  useEffect(() => {
-    calculateTax();
-  }, [salary, exemptions, interestIncome, otherIncome, homeLoanInterest, deductions80c, deductions80ccd1b, deductions80d, deductions80tta, deductions80g, financialYear, ageGroup]);
+    };
+  }, [salary, exemptions, interestIncome, otherIncome, homeLoanInterest, deductions80c, deductions80ccd1b, deductions80d, deductions80tta, deductions80g, ageGroup]);
 
   const betterRegime = results.taxOld <= results.taxNew ? 'Old Regime' : 'New Regime';
   const savings = Math.abs(results.taxOld - results.taxNew);

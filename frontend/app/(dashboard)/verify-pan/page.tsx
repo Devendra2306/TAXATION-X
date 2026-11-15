@@ -186,8 +186,9 @@ export default function StartFilingWorkflowPage() {
       // Advance directly to real ITD Aadhaar OTP step
       setResendTimer(150);
       setCurrentStep('itd_otp');
-    } catch (err: any) {
-      setErrorMessage(err?.message || 'Network error occurred during PAN verification. Please try again.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Network error occurred during PAN verification. Please try again.';
+      setErrorMessage(msg);
     } finally {
       setLoading(false);
     }
@@ -253,8 +254,9 @@ export default function StartFilingWorkflowPage() {
       setTimeout(() => {
         router.push('/review');
       }, 2500);
-    } catch (err: any) {
-      setErrorMessage(err?.message || 'Failed to connect to ITD data service. Please try again.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to connect to ITD data service. Please try again.';
+      setErrorMessage(msg);
       setCurrentStep('itd_otp');
       setLoading(false);
     }
@@ -761,7 +763,7 @@ export default function StartFilingWorkflowPage() {
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                   <span className="font-bold text-slate-800">Q: Can I skip pre-fill?</span>
                   <p className="mt-1">
-                    Yes! Click "Skip" on any step to manually upload your Form 16 PDF or fill in your salary details.
+                    Yes! Click &quot;Skip&quot; on any step to manually upload your Form 16 PDF or fill in your salary details.
                   </p>
                 </div>
               </div>

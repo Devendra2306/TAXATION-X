@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { Calculator, ChevronRight, ShieldCheck, ChevronDown, Star } from 'lucide-react';
 
@@ -24,18 +24,8 @@ export default function AdvanceTaxCalculatorPage() {
   const [tds, setTds] = useState<number | ''>('');
   const [advanceTaxPaid, setAdvanceTaxPaid] = useState<number | ''>('');
 
-  // Results
-  const [results, setResults] = useState({
-    taxLiability: 0,
-    netLiabilityAfterTds: 0,
-    junDue: 0,
-    sepDue: 0,
-    decDue: 0,
-    marDue: 0,
-    requiresAdvanceTax: false
-  });
-
-  const calculateAdvanceTax = () => {
+  // Results (derived synchronously via useMemo)
+  const results = useMemo(() => {
     // Estimations
     const s = Number(salary) || 0;
     const b = Number(businessIncome) || 0;
@@ -82,7 +72,7 @@ export default function AdvanceTaxCalculatorPage() {
       marDue = Math.max(0, (netLiabilityAfterTds * 1.00) - currentPaid);
     }
 
-    setResults({
+    return {
       taxLiability: Math.round(tax),
       netLiabilityAfterTds: Math.max(0, Math.round(netLiabilityAfterTds)),
       junDue: Math.round(junDue),
@@ -90,12 +80,8 @@ export default function AdvanceTaxCalculatorPage() {
       decDue: Math.round(decDue),
       marDue: Math.round(marDue),
       requiresAdvanceTax
-    });
-  };
-
-  useEffect(() => {
-    calculateAdvanceTax();
-  }, [assesseeType, ageGroup, residentialStatus, salary, businessIncome, capitalGains, otherIncome, deductions80c, deductionsOther, tds, advanceTaxPaid]);
+    };
+  }, [assesseeType, salary, businessIncome, capitalGains, otherIncome, deductions80c, deductionsOther, tds, advanceTaxPaid]);
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
@@ -322,10 +308,10 @@ export default function AdvanceTaxCalculatorPage() {
           <div>
             <h2 className="text-2xl font-bold text-slate-900 mb-4">How to Use the Advance Tax Calculator?</h2>
             <ul className="list-disc pl-5 space-y-3 leading-relaxed text-slate-600">
-              <li><strong>Step 1:</strong> Choose the assessee type, age group and residential status applicable to you and click "Go to Next Step".</li>
-              <li><strong>Step 2:</strong> Input all your Income details and click on "Go to Next Step".</li>
+              <li><strong>Step 1:</strong> Choose the assessee type, age group and residential status applicable to you and click &quot;Go to Next Step&quot;.</li>
+              <li><strong>Step 2:</strong> Input all your Income details and click on &quot;Go to Next Step&quot;.</li>
               <li><strong>Step 3:</strong> Enter your tax-saving investments under Section 80C, 80D, 80E, 80G, 80TTA and other deductions available to you.</li>
-              <li><strong>Step 4:</strong> Enter all the details of the taxes deducted during the year and the advance tax already paid in the previous instalments, and click "Calculate."</li>
+              <li><strong>Step 4:</strong> Enter all the details of the taxes deducted during the year and the advance tax already paid in the previous instalments, and click &quot;Calculate.&quot;</li>
               <li><strong>Step 5:</strong> The summary of your advance tax liability as per the new and old regimes will be displayed.</li>
             </ul>
           </div>

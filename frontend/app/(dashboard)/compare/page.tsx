@@ -7,6 +7,30 @@ import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { CURRENT_ASSESSMENT_YEAR } from '@/lib/assessmentYear';
 
+interface DbTaxResult {
+  old_regime: {
+    gross_income: number;
+    total_deductions: number;
+    deductions_80c: number;
+    taxable_income: number;
+    total_tax: number;
+  };
+  new_regime: {
+    gross_income: number;
+    total_deductions: number;
+    taxable_income: number;
+    total_tax: number;
+  };
+  recommendation: {
+    regime: 'new' | 'old';
+    savings: number;
+    refund: number;
+    best_tax: number;
+  };
+  warnings?: string[];
+  itr1_eligible?: boolean;
+}
+
 export default function ComparePage() {
   const router = useRouter();
   const [selectedRegime, setSelectedRegime] = useState<'new' | 'old'>('new');
@@ -18,7 +42,7 @@ export default function ComparePage() {
   });
 
   const [isComputing, setIsComputing] = useState(true);
-  const [dbResult, setDbResult] = useState<any>(null);
+  const [dbResult, setDbResult] = useState<DbTaxResult | null>(null);
 
   useEffect(() => {
     const computeTax = async () => {
@@ -37,7 +61,7 @@ export default function ComparePage() {
         });
         
         if (res.ok) {
-          const result = await res.json();
+          const result: DbTaxResult = await res.json();
           setDbResult(result);
           // Set recommendation
           setSelectedRegime(result.recommendation.regime);
@@ -50,9 +74,10 @@ export default function ComparePage() {
           const errData = await res.json().catch(() => ({}));
           setErrorMessage(errData.detail || 'Unable to compute tax under statutory rules.');
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.error(e);
-        setErrorMessage(e?.message || 'Network error occurred while computing taxes.');
+        const msg = e instanceof Error ? e.message : 'Network error occurred while computing taxes.';
+        setErrorMessage(msg);
       } finally {
         setIsComputing(false);
       }

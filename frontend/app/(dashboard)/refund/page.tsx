@@ -6,35 +6,22 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 
 export default function RefundPage() {
-  const [ackNum, setAckNum] = useState<string | null>(null);
-  const [filedDate, setFiledDate] = useState('Jul 10, 2026');
-  const [expectedRefund, setExpectedRefund] = useState('28,500');
-  const [pan, setPan] = useState('');
-
-  useEffect(() => {
+  const [ackNum] = useState<string | null>(() => (typeof window !== 'undefined' ? localStorage.getItem('ack_number') : null));
+  const [filedDate] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('ack_date') || 'Jul 10, 2026' : 'Jul 10, 2026'));
+  const [expectedRefund] = useState(() => {
     if (typeof window !== 'undefined') {
-      const storedAck = localStorage.getItem('ack_number');
-      const storedDate = localStorage.getItem('ack_date');
-      const storedPan = localStorage.getItem('verified_pan');
-      if (storedAck) setAckNum(storedAck);
-      if (storedDate) setFiledDate(storedDate);
-      if (storedPan) setPan(storedPan);
-
       const parsed = localStorage.getItem('parsedTaxData');
       if (parsed) {
         try {
           const data = JSON.parse(parsed);
           const tds = data.tds_deducted || 0;
-          // Approximate estimation: if TDS > 50,000, refund estimation
-          if (tds > 75000) {
-            setExpectedRefund((tds - 50000).toLocaleString('en-IN'));
-          } else {
-            setExpectedRefund('12,450');
-          }
+          return tds > 75000 ? (tds - 50000).toLocaleString('en-IN') : '12,450';
         } catch {}
       }
     }
-  }, []);
+    return '28,500';
+  });
+  const [pan] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('verified_pan') || '' : ''));
 
   const steps = [
     {

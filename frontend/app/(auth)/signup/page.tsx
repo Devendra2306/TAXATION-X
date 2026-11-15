@@ -16,16 +16,7 @@ export default function SignupPage() {
     password: '',
   });
   const [loading, setLoading] = useState(false);
-  const [isSlowLoading, setIsSlowLoading] = useState(false);
-  useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-    if (loading) {
-      timeoutId = setTimeout(() => setIsSlowLoading(true), 3500);
-    } else {
-      setIsSlowLoading(false);
-    }
-    return () => clearTimeout(timeoutId);
-  }, [loading]);
+
   const [error, setError] = useState('');
 
   const getDestination = () => {

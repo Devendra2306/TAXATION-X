@@ -6,25 +6,26 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 
 export default function OptimizerPage() {
-  const [data, setData] = useState({
-    gross_salary: 0,
-    deductions_80c: 0,
-    tds_deducted: 0
-  });
-
-  useEffect(() => {
-    const saved = localStorage.getItem('parsedTaxData');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setData({
-          gross_salary: parsed.gross_salary || 0,
-          deductions_80c: parsed.deductions_80c || 0,
-          tds_deducted: parsed.tds_deducted || 0
-        });
-      } catch (e) {}
+  const [data, setData] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('parsedTaxData');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          return {
+            gross_salary: parsed.gross_salary || 0,
+            deductions_80c: parsed.deductions_80c || 0,
+            tds_deducted: parsed.tds_deducted || 0
+          };
+        } catch {}
+      }
     }
-  }, []);
+    return {
+      gross_salary: 0,
+      deductions_80c: 0,
+      tds_deducted: 0
+    };
+  });
 
   const d80c = data.deductions_80c;
   const gap80c = Math.max(0, 150000 - d80c);
@@ -73,7 +74,7 @@ export default function OptimizerPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Tax Optimizer</h1>
-          <p className="text-slate-500">Discover deductions you're missing to maximize your tax refund.</p>
+          <p className="text-slate-500">Discover deductions you&apos;re missing to maximize your tax refund.</p>
         </div>
         <Link href="/compare" className="btn-secondary flex items-center gap-2">
           Compare Regimes <ArrowRight size={16} />

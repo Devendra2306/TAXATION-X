@@ -31,13 +31,13 @@ export default function DashboardPage() {
   const router = useRouter();
 
   // User state
-  const [userName, setUserName] = useState('Taxpayer');
+  const [userName, setUserName] = useState<string>(() => (typeof window !== 'undefined' ? localStorage.getItem('verified_name') || 'Taxpayer' : 'Taxpayer'));
   const [userEmail, setUserEmail] = useState('');
-  const [pan, setPan] = useState<string | null>(null);
-  const [hasForm16, setHasForm16] = useState(false);
-  const [isFiled, setIsFiled] = useState(false);
-  const [ackNumber, setAckNumber] = useState('');
-  const [filingDate, setFilingDate] = useState('');
+  const [pan, setPan] = useState<string | null>(() => (typeof window !== 'undefined' ? localStorage.getItem('verified_pan') : null));
+  const [hasForm16] = useState<boolean>(() => (typeof window !== 'undefined' ? Boolean(localStorage.getItem('parsedTaxData')) : false));
+  const [isFiled, setIsFiled] = useState<boolean>(() => (typeof window !== 'undefined' ? localStorage.getItem('itr_filed') === 'true' && Boolean(localStorage.getItem('ack_number')) : false));
+  const [ackNumber, setAckNumber] = useState<string>(() => (typeof window !== 'undefined' ? localStorage.getItem('ack_number') || '' : ''));
+  const [filingDate, setFilingDate] = useState<string>(() => (typeof window !== 'undefined' ? localStorage.getItem('ack_date') || 'Today' : ''));
 
   // Modals state
   const [stepsModalOpen, setStepsModalOpen] = useState(false);
@@ -48,24 +48,6 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const storedPan = localStorage.getItem('verified_pan');
-      if (storedPan) setPan(storedPan);
-
-      const parsedTax = localStorage.getItem('parsedTaxData');
-      if (parsedTax) setHasForm16(true);
-
-      const storedName = localStorage.getItem('verified_name');
-      if (storedName) setUserName(storedName);
-
-      // Check if return was filed
-      const filed = localStorage.getItem('itr_filed') === 'true';
-      const ack = localStorage.getItem('ack_number');
-      if (filed && ack) {
-        setIsFiled(true);
-        setAckNumber(ack);
-        setFilingDate(localStorage.getItem('ack_date') || 'Today');
-      }
-
       // Fetch user profile from API
       const token = localStorage.getItem('access_token');
       if (token) {
@@ -165,7 +147,7 @@ export default function DashboardPage() {
                     You can finish filing in just 10 mins!
                   </h1>
                   <p className="text-slate-500 text-xs sm:text-sm mt-1">
-                    Don't wait until the rush! Auto-fetch your Form 16, AIS, and 26AS seamlessly.
+                    Don&apos;t wait until the rush! Auto-fetch your Form 16, AIS, and 26AS seamlessly.
                   </p>
                 </div>
 
@@ -589,7 +571,7 @@ export default function DashboardPage() {
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
                   <span className="font-bold text-slate-800">⚖️ Old vs New Tax Regime?</span>
                   <p className="text-slate-600 mt-1">
-                    You don't need to choose manually. NexTax runs your numbers simultaneously on both regimes and recommends the one that gives you maximum savings or higher refund.
+                    You don&apos;t need to choose manually. NexTax runs your numbers simultaneously on both regimes and recommends the one that gives you maximum savings or higher refund.
                   </p>
                 </div>
 
